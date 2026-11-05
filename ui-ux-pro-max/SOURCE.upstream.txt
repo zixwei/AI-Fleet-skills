@@ -1,0 +1,4 @@
+source: https://github.com/nextlevelbuilder/ui-ux-pro-max-skill
+commit: 3a13158
+path: .claude/skills/ui-ux-pro-max
+staged: 2026-11-01 07:36 EST
