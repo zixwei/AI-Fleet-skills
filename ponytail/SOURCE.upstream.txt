@@ -1,0 +1,4 @@
+source: https://github.com/DietrichGebert/ponytail
+commit: 96608e0
+path: skills/ponytail
+staged: 2026-11-01 07:36 EST

@@ -1,0 +1,4 @@
+source: https://github.com/mattpocock/skills
+commit: 4ae2317
+path: skills/engineering/to-spec
+staged: 2026-11-01 07:36 EST

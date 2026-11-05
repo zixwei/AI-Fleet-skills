@@ -1,0 +1,4 @@
+source: https://github.com/pskoett/self-improving-agent
+commit: e958afb
+path: self-improving-agent
+staged: 2026-11-01 07:36 EST
