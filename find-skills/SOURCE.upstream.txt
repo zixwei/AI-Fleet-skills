@@ -1,0 +1,4 @@
+source: https://github.com/vercel-labs/skills
+commit: 92a9a34
+path: skills/find-skills
+staged: 2026-11-01 07:36 EST
