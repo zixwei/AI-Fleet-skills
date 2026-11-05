@@ -1,0 +1,4 @@
+source: https://github.com/bergside/awesome-design-skills
+commit: f631a09
+path: skills/immersive
+staged: 2026-11-01 07:36 EST
