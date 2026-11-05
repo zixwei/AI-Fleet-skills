@@ -1,0 +1,4 @@
+source: https://github.com/blader/humanizer
+commit: 0ef9fe5
+path: humanizer
+staged: 2026-11-01 07:36 EST
