@@ -55,7 +55,8 @@
 - tradingagents-astock[本机]同框架 A 股版。何时用：A 股压力测试。
 - gsq-*[本机/方法]高盛 gs_quant 其余技能：需 GS 账号。何时用：gs_quant 高级功能。
 - hg-*[本机]Hyperliquid 交易台（17 个）：读账户、行情、风控限额、下单流程、复盘、事故处理。何时用：仅 Hyperliquid；任何下单须 zixwei 本人批准。其中 hg-desk-risk-limits、hg-desk-post-trade-review、hg-desk-execution-protocol 的方法可借鉴到 IBKR 模拟盘。
-- openstock / tick-stock-panel[本机]本地看盘网页 / 选股监控回测面板。何时用：人看图或面板 API。
+- openstock[本机]本地看盘网页。何时用：人看图。
+- tick-stock-panel[本机]选股监控回测面板。何时用：面板 API。
 
 ## 7. 内容、配图与设计
 - chart-chooser[方法]选图表类型、坐标轴基线、配色、防误导。何时用：做行情图前。
