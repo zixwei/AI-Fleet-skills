@@ -21,4 +21,4 @@ Expect: the project root; the artifact path(s); the direction contract text (THE
 
 ## Output Contract
 
-Return: paths written, or “No changes” with the source and system files checked and, when an existing DESIGN.md stopped the write, the choice owed; a five-line system summary (palette, type ramp, named rules); and one line naming defects or drift not canonized or repaired, and why. No other prose.
+Return: paths written, or "No changes" with the source and system files checked and, when an existing DESIGN.md stopped the write, the choice owed; a five-line system summary (palette, type ramp, named rules); and one line naming defects or drift not canonized or repaired, and why. No other prose.

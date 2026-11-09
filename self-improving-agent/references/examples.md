@@ -404,7 +404,7 @@ If later evidence shows batching-on passes only single-export tests, the paralle
 
 ### Promoted reality claim: externalize volatile detail, keep provenance
 
-The legacy `LRN-20250115-002` says “use pnpm” and notes promotion to `TOOLS.md`. During a relevant setup task, inspect the repository, not the age of that note. Suppose these reads actually occurred in the example workspace:
+The legacy `LRN-20250115-002` says "use pnpm" and notes promotion to `TOOLS.md`. During a relevant setup task, inspect the repository, not the age of that note. Suppose these reads actually occurred in the example workspace:
 
 ```markdown
 ### Maintenance
@@ -442,9 +442,9 @@ If the promoted copy is in a skill asset instead, record the proposed edit as pe
 
 | Saved claim and event | Appropriate review and outcome |
 |-----------------------|--------------------------------|
-| `reality / fast`: “service runs on host A”; infrastructure moved | Inspect current authoritative deployment inventory/environment. With evidence of host B, revise A → B with dated source, or externalize to the verified inventory lookup. A year-old incident on A stays in history. |
-| `decision / slow`: “use provider Y”; another team chooses Z | Check the decision register for an applicable effective superseding decision. The other team's choice alone does not supersede this team's decision. Retain Y if the current register confirms it; unresolved if the register is unavailable. |
-| `decision / durable`: “obtain approval before destructive changes”; old and rarely exercised | Retain the safeguard. Age/disuse is not supersession or permission to weaken policy. Recheck authoritative policy if challenged; do not discard it while evidence is blocked. |
-| `relevance / medium`: “use the CSV workaround for the legacy dashboard”; current task is API-only | Record that the workaround may remain true for the dashboard but is not useful for this task. Retain it scoped to the dashboard, or retire from active project guidance only if evidence establishes the dashboard is no longer used. |
+| `reality / fast`: "service runs on host A"; infrastructure moved | Inspect current authoritative deployment inventory/environment. With evidence of host B, revise A → B with dated source, or externalize to the verified inventory lookup. A year-old incident on A stays in history. |
+| `decision / slow`: "use provider Y"; another team chooses Z | Check the decision register for an applicable effective superseding decision. The other team's choice alone does not supersede this team's decision. Retain Y if the current register confirms it; unresolved if the register is unavailable. |
+| `decision / durable`: "obtain approval before destructive changes"; old and rarely exercised | Retain the safeguard. Age/disuse is not supersession or permission to weaken policy. Recheck authoritative policy if challenged; do not discard it while evidence is blocked. |
+| `relevance / medium`: "use the CSV workaround for the legacy dashboard"; current task is API-only | Record that the workaround may remain true for the dashboard but is not useful for this task. Retain it scoped to the dashboard, or retire from active project guidance only if evidence establishes the dashboard is no longer used. |
 
 For mixed sweep entries containing an authentication error and a build error, keep `Decay: unknown / unknown` until each reusable claim is triaged. Regex matches, incident recovery, and repeat count cannot supply an authority or verify a general rule. Never change a user's formatting preference simply because a new task does not exercise it.

@@ -75,7 +75,7 @@ After Matthew Butterick's *Practical Typography*, paraphrased; where his numbers
 - Zoom, text scaling, focus, contrast, and reduced viewport paths remain usable.
 - The final mechanical scan has no unexplained findings.
 
-Answer each item with rendered or source evidence, then rerun the scan. Do not substitute a bare “yes” for verification.
+Answer each item with rendered or source evidence, then rerun the scan. Do not substitute a bare "yes" for verification.
 
 When the hierarchy holds, hand off to `/impeccable polish`.
 

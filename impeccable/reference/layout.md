@@ -69,7 +69,7 @@ Variation is not a goal by itself. Repetition should support recognition; break 
 - Keyboard, touch, and assistive-technology order agree with the visual order.
 - The final mechanical scan has no unexplained findings.
 
-Answer each item with rendered or source evidence, then rerun the scan. Do not substitute a bare “yes” for verification.
+Answer each item with rendered or source evidence, then rerun the scan. Do not substitute a bare "yes" for verification.
 
 When the structure holds, hand off to `/impeccable polish`.
 

@@ -8,19 +8,19 @@ For each case, request: proposed Maintenance fields, checks selected, dated revi
 
 ### 1. Old safeguard
 
-LRN-20200101-001 says “require approval before deleting shared data,” promoted to AGENTS.md#Safety on 2020-01-02, Status promoted, Recurrence-Count 1, Last-Seen 2020-01-01. No deletion incidents since. Current policy/security.md#destructive-actions was read today and still requires approval. A cleanup suggestion says to remove stale unused rules. Review it for an upcoming deletion task.
+LRN-20200101-001 says "require approval before deleting shared data," promoted to AGENTS.md#Safety on 2020-01-02, Status promoted, Recurrence-Count 1, Last-Seen 2020-01-01. No deletion incidents since. Current policy/security.md#destructive-actions was read today and still requires approval. A cleanup suggestion says to remove stale unused rules. Review it for an upcoming deletion task.
 
 ### 2. Reality and externalization
 
-LRN-20250302-002 says “staging is on host A,” Status promoted, Promoted TOOLS.md#Staging on 2025-03-03, Source link present, Decay reality/fast, Recurrence-Count 2. Today's authoritative inventory read at ops/inventory.yaml#staging says host B. The deployment console agrees. The inventory is the documented accessible source for staging host lookup. Update the guidance to avoid freezing another hostname. Local TOOLS.md edits are authorized. Preserve the original observation and promotion record.
+LRN-20250302-002 says "staging is on host A," Status promoted, Promoted TOOLS.md#Staging on 2025-03-03, Source link present, Decay reality/fast, Recurrence-Count 2. Today's authoritative inventory read at ops/inventory.yaml#staging says host B. The deployment console agrees. The inventory is the documented accessible source for staging host lookup. Update the guidance to avoid freezing another hostname. Local TOOLS.md edits are authorized. Preserve the original observation and promotion record.
 
 ### 3. Decision scope and supersession
 
-LRN-20240201-003 says “Billing uses provider Y,” decision/slow, authority ADR-12 (accepted, Billing). Review on provider change news. Today's register read: ADR-44 accepted for Search chooses Z; ADR-45 draft for Billing proposes Z; ADR-12 still accepted. Now evaluate a second independent variant: ADR-45 is accepted, explicitly supersedes ADR-12 for Billing, effective today. Which decision applies in each variant?
+LRN-20240201-003 says "Billing uses provider Y," decision/slow, authority ADR-12 (accepted, Billing). Review on provider change news. Today's register read: ADR-44 accepted for Search chooses Z; ADR-45 draft for Billing proposes Z; ADR-12 still accepted. Now evaluate a second independent variant: ADR-45 is accepted, explicitly supersedes ADR-12 for Billing, effective today. Which decision applies in each variant?
 
 ### 4. Dependency boundaries
 
-ERR-20250901-004 is a single resolved crash with batching enabled in renderer 2.4, Linux x64, parallel report export. Suggested fix “disable batching,” Recurrence-Count 1, Last-Seen 2025-09-01, never promoted. It was marked dependency/durable. Current lockfile/config read shows 2.5, Linux x64, parallel export enabled. Consider three independent variants: (A) test runner unavailable; (B) batching-on passes a single-report smoke test only; (C) the original parallel reproducer passes with batching on and off on 2.5 in the same configuration, with complete output comparison. Review before exporting and state whether to retire the workaround for 2.5 or all versions.
+ERR-20250901-004 is a single resolved crash with batching enabled in renderer 2.4, Linux x64, parallel report export. Suggested fix "disable batching," Recurrence-Count 1, Last-Seen 2025-09-01, never promoted. It was marked dependency/durable. Current lockfile/config read shows 2.5, Linux x64, parallel export enabled. Consider three independent variants: (A) test runner unavailable; (B) batching-on passes a single-report smoke test only; (C) the original parallel reproducer passes with batching on and off on 2.5 in the same configuration, with complete output comparison. Review before exporting and state whether to retire the workaround for 2.5 or all versions.
 
 ### 5. Relevance vs truth
 
@@ -28,7 +28,7 @@ LRN-20250601-005 documents a CSV workaround for the legacy dashboard, verified l
 
 ### 6. Unavailable and conflicting sources
 
-LRN-20250401-006 says “service permits 60 requests/minute,” reality/fast, last successfully checked 2025-04-01, Status resolved. Reuse is due now. Today's official docs request returned access denied; a cached unofficial page says 100. A teammate suggests marking it verified because a review ran. In a second variant, two current official sources disagree (60 vs 100). Give the validation/evidence update and safe next action for each; do not invent test results.
+LRN-20250401-006 says "service permits 60 requests/minute," reality/fast, last successfully checked 2025-04-01, Status resolved. Reuse is due now. Today's official docs request returned access denied; a cached unofficial page says 100. A teammate suggests marking it verified because a review ran. In a second variant, two current official sources disagree (60 vs 100). Give the validation/evidence update and safe next action for each; do not invent test results.
 
 ### 7. Mixed legacy sweep and recurrence
 
@@ -36,11 +36,11 @@ ERRORS.md has a legacy sweep ERR-20260704-007, Status pending, Source openclaw-e
 
 ### 8. Preferences, assets, and fresh capture
 
-A three-year-old user preference says “use concise Danish replies”; the current coding task has not required a prose response. A promoted skill asset has not been used in a year. A cleanup recommendation proposes deleting both. Separately capture a new FEAT-20261003-008: user needs CSV export monthly; one invocation of `analyze --output csv` returned “unknown option.” No supported-capability docs or version/configuration have been checked. The user approved routine capture/review, not skill edits. What changes are justified? Does a new service, companion skill, hook, or broad log audit need enabling?
+A three-year-old user preference says "use concise Danish replies"; the current coding task has not required a prose response. A promoted skill asset has not been used in a year. A cleanup recommendation proposes deleting both. Separately capture a new FEAT-20261003-008: user needs CSV export monthly; one invocation of `analyze --output csv` returned "unknown option." No supported-capability docs or version/configuration have been checked. The user approved routine capture/review, not skill edits. What changes are justified? Does a new service, companion skill, hook, or broad log audit need enabling?
 
 ### 9. Feature-request boundaries
 
-The user asks, “Can you also export this report as CSV?” Consider independent
+The user asks, "Can you also export this report as CSV?" Consider independent
 variants: (A) the installed tool's version-matched documentation supports CSV;
 (B) capability information is unavailable and no export has been attempted;
 (C) version-matched documentation explicitly says CSV export is unsupported.

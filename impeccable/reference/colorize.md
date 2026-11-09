@@ -71,7 +71,7 @@ When deriving OKLCH ramps, vary lightness and reduce chroma near white and black
 - The palette works across quiet, dense, interactive, error, and empty states.
 - Light and dark themes are each composed, not mechanically inverted.
 - Contrast and non-color cues pass in all relevant states.
-- The result is recognizably this product, not a generic “colorful” treatment.
+- The result is recognizably this product, not a generic "colorful" treatment.
 
 When the palette earns its place, hand off to `/impeccable polish` for the final pass.
 
