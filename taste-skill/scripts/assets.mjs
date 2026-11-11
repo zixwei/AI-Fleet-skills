@@ -844,7 +844,7 @@ function printCredits(opts) {
     const by = c.creator && !/^(unknown|anonymous)\b/i.test(c.creator) ? ` by ${esc(short(c.creator, 60))}` : '';
     const date = /^(aic|met):/.test(c.ref) && c.date ? `, ${esc(short(c.date, 30))}` : '';
     const lic = c.licenseUrl ? `<a href="${esc(c.licenseUrl)}">${esc(c.license)}</a>` : esc(c.license);
-    return `<a href="${esc(c.page)}">“${esc(short(c.title, 90))}”</a>${by}${date}, ${lic}, via ${esc(c.via)}`;
+    return `<a href="${esc(c.page)}">"${esc(short(c.title, 90))}"</a>${by}${date}, ${lic}, via ${esc(c.via)}`;
   };
   const media = new Set(uniq.map((c) => c.media || 'image'));
   const label = media.size > 1 ? 'Pictures and footage' : media.has('video') ? 'Footage' : 'Pictures';
