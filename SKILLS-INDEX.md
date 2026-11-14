@@ -1,9 +1,9 @@
 # zixwei 团队共享技能索引(可直接粘贴给 Muse / Perplexity / Manus / Gemini / Copilot)
-更新:2026-11-11｜维护:ai总管
+更新:2026-11-14｜维护:ai总管
 标记:功能分类统一为 [方法].方法可以写环境前提.标签只标明条目性质,不授予执行能力或权限.索引用方括号;中文方头括号会被 muse2api 当成引用标记删掉(2026-11-01 实测).
 用法:任务匹配到某条时,按「何时用」行事,并先满足该条写明的环境前提.团队规则见另贴的<外部 AI 工具通用规则>,冲突时以规则为准.
 说明:部分方法全文在本库,沿用本库现有链接,即相对路径 `<名字>/SKILL.md`.部分方法全文在私有库 [AI-Fleet-memory](https://github.com/zixwei/AI-Fleet-memories) 的 `shared/skills/<技能名>/SKILL.md`,需用户已授予相应访问授权;未获授权由 ai总管安排.不得假定其他 AI 能访问 Grok Bot 的 `/workspace` 或 `127.0.0.1`.不将私有正文或凭据公开.指向私有库的链接只是索引地址.并不是每条方法在本公开库都有正文.
-计数:按条目48公开(47本库方法+1跨库规则),14私有引用/组合;按文件目标47本库公开,1跨库规则,15私有(hg一条3链接,gsq组合无href);另2仓库主页导航,共65个Markdown链接.条目口径与文件目标口径分开计.全表仍是62条,其中61条方法,1条规则.口径:47 是本库实有目录数,62 是含私有引用的全表条目数(61 方法 + 1 规则).
+计数:按条目49公开(48本库方法+1跨库规则),14私有引用/组合;按文件目标48本库公开,1跨库规则,15私有(hg一条3链接,gsq组合无href);另2仓库主页导航,共66个Markdown链接.条目口径与文件目标口径分开计.全表仍是63条,其中62条方法,1条规则.口径:48 是本库实有目录数,63 是含私有引用的全表条目数(62 方法 + 1 规则).
 
 ## 1. 规则(先读)
 - [zixwei-decisions](https://github.com/zixwei/AI-Fleet-rules/blob/main/SKILL.md)[规则库]所有 bot 动手前读规则清单,对照执行,新规则当场写入.全文在公开规则库 [zixwei/AI-Fleet-rules](https://github.com/zixwei/AI-Fleet-rules),不在本库.何时用:任何工作,发帖,回答前.
@@ -82,3 +82,4 @@
 - [muse2api](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/muse2api/SKILL.md)[方法]本机 Muse 接口(聊天,生图,生视频),免费额度先 acc-02(微软号)后 acc-01(谷歌号)(zixwei 2026-11-01 10:37 ET).何时用:重活外包.前提:本地实例不可跨机器直连,环境另核.额外付费先经用户批准.密钥不外发.
 - [improve](improve/SKILL.md)[方法]代码库审计与实施计划:贵模型审计判断、写自包含实施计划,便宜模型执行;只读源码、不改代码.何时用:审计代码库、找改进机会、给另一 agent 写实施计划时.前提:支持 Agent Skills 格式的 agent;计划为纯 Markdown,任何 agent 都能执行.
 - [modern-web-guidance](modern-web-guidance/SKILL.md)[方法]现代 Web 开发最佳实践检索:写前端/HTML/CSS/客户端 JS 前先查 250 篇标准指南(对话框、表单、暗色模式、性能、无障碍等),防过时写法.何时用:写或改网页 UI、CSS 布局/动画、客户端 JS 逻辑前.**前提:需安装 modern-web-guidance CLI(npm:npx modern-web-guidance@latest),不装 CLI 技能不可用.**
+- [socratic-tutor](socratic-tutor/SKILL.md)[方法]苏格拉底式教学:用户明确要求教、考、练到掌握时用:诊断定位、0-5 级技能图、一次只问一题、间隔复习、最后考核;不用于一次性解释问题.何时用:用户说教我、考我、带我练到会时.
