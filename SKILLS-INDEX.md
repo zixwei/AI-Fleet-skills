@@ -1,8 +1,8 @@
-# zixwei 团队共享技能索引(可直接粘贴给 Muse / Perplexity / Manus / Gemini / Copilot)
-更新:2026-11-15｜维护:ai总管
+# zixwei 团队共享技能索引(可直接粘贴给 Muse / Perplexity / Manus(Manus) / Gemini(Gemini) / Copilot)
+更新:2026-11-15｜维护:bot(Grok Bot)
 标记:功能分类统一为 [方法].方法可以写环境前提.标签只标明条目性质,不授予执行能力或权限.索引用方括号;中文方头括号会被 muse2api 当成引用标记删掉(2026-11-01 实测).
 用法:任务匹配到某条时,按「何时用」行事,并先满足该条写明的环境前提.团队规则见另贴的<外部 AI 工具通用规则>,冲突时以规则为准.
-说明:部分方法全文在本库,沿用本库现有链接,即相对路径 `<名字>/SKILL.md`.部分方法全文在私有库 [AI-Fleet-memory](https://github.com/zixwei/AI-Fleet-memories) 的 `shared/skills/<技能名>/SKILL.md`,需用户已授予相应访问授权;未获授权由 ai总管安排.不得假定其他 AI 能访问 Grok Bot 的 `/workspace` 或 `127.0.0.1`.不将私有正文或凭据公开.指向私有库的链接只是索引地址.并不是每条方法在本公开库都有正文.
+说明:部分方法全文在本库,沿用本库现有链接,即相对路径 `<名字>/SKILL.md`.部分方法全文在私有库 [AI-Fleet-memory](https://github.com/zixwei/AI-Fleet-memories) 的 `shared/skills/<技能名>/SKILL.md`,需用户已授予相应访问授权;未获授权由 bot(Grok Bot)安排.不得假定其他 AI 能访问 Grok Bot(Grok Bot) 的 `/workspace` 或 `127.0.0.1`.不将私有正文或凭据公开.指向私有库的链接只是索引地址.并不是每条方法在本公开库都有正文.
 计数:按条目66公开(65本库方法+1跨库规则),14私有引用/组合;按文件目标65本库公开,1跨库规则,15私有(hg一条3链接,gsq组合无href);另2仓库主页导航,共83个Markdown链接.条目口径与文件目标口径分开计.全表仍是80条,其中79条方法,1条规则.口径:65 是本库实有目录数,80 是含私有引用的全表条目数(79 方法 + 1 规则).2026-11-15 新增第 9 节动画与视频 17 条,来源 X @Feljoy_ix 2026-11-14 帖子 https://x.com/feljoy_ix/status/2121787138455040333,均为舰队包装技能(上游为库/工具,先读 README 再动手).remotion-skills 未入库:其仓库无 LICENSE 文件,许可证未核实,按 2026-11-15 用户令先不入库,核实后再入.
 
 ## 1. 规则(先读)
@@ -42,7 +42,7 @@
 - [roster-management](roster-management/SKILL.md)[方法]编队与花名册:管成员名单,分工,状态.何时用:增减成员,查分工时.
 - [team-prompting](team-prompting/SKILL.md)[方法]团队提示词:给多 bot 写统一的提示词和口径.何时用:多 bot 协作要统一口径时.
 - [botteams](botteams/SKILL.md)[方法]现成 bot 团队模板.何时用:规划新 bot 队伍时.
-- [grok-bot-profiles](grok-bot-profiles/SKILL.md)[方法]Grok Bot 档案/模板:互查开发 bot 的模板.何时用:建新 Bot,查 Bot 配置时.
+- [grok-bot-profiles](grok-bot-profiles/SKILL.md)[方法]Grok Bot(Grok Bot) 档案/模板:互查开发 bot 的模板.何时用:建新 Bot,查 Bot 配置时.
 - [growth-fleet-starter](growth-fleet-starter/SKILL.md)[方法]搭出海增长 bot 队伍的开工包.何时用:规划增长类新 bot(建 bot 须 zixwei 同意).
 - [grok-bot-token-saver](grok-bot-token-saver/SKILL.md)[方法]省额度:总管/工人分工,短角色卡,长对话交接到新对话.何时用:上下文或额度浪费时.
 
@@ -68,7 +68,7 @@
 - [ui-ux-pro-max](ui-ux-pro-max/SKILL.md)[方法]UI/UX 设计:界面与体验.何时用:做或审网页,Page,落地页.
 - [impeccable](impeccable/SKILL.md)[方法]设计与打磨:细节与完成度.何时用:做或审网页,Page,落地页.
 - [hallmark](hallmark/SKILL.md)[方法]Hallmark 配图风格.何时用:做配图时.
-- [hyperframes-video](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/hyperframes-video/SKILL.md)[方法]HTML 本地渲染短视频(图表动画,标题卡,字幕,竖版),不上传不付费.何时用:需要视频素材时.前提:需相应本地工具;依赖未满足由 ai总管安排.
+- [hyperframes-video](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/hyperframes-video/SKILL.md)[方法]HTML 本地渲染短视频(图表动画,标题卡,字幕,竖版),不上传不付费.何时用:需要视频素材时.前提:需相应本地工具;依赖未满足由 bot(Grok Bot)安排.
 
 ## 8. 工程,技能与 AI 工具
 - [matt-pocock-skills](matt-pocock-skills/SKILL.md)[方法]TDD,代码审查,调 bug,规格拆票,PR,交接,拷问方案等工程流程.何时用:写代码.
@@ -77,8 +77,8 @@
 - [skill-creator](skill-creator/SKILL.md)[方法]写技能:把方法写成可复用的技能.何时用:扩展能力,沉淀新方法时.
 - [find-skills](find-skills/SKILL.md)[方法]找可装技能.何时用:需要新技能时.
 - [muse-playbook](muse-playbook/SKILL.md)[方法]300 条 Muse 玩法(含 Muse 做不到的「实话实说」).何时用:问 Muse 能做什么,怎么说.
-- [codebase-memory](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/codebase-memory/SKILL.md)[方法]把大代码库建成图谱查调用关系.何时用:读陌生仓库.前提:需相应本地工具;依赖未满足由 ai总管安排.
-- [markitdown](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/markitdown/SKILL.md)[方法]PDF/Word/Excel/PPT/网页转 Markdown.何时用:读非纯文本文件.前提:需相应本地工具;依赖未满足由 ai总管安排.
+- [codebase-memory](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/codebase-memory/SKILL.md)[方法]把大代码库建成图谱查调用关系.何时用:读陌生仓库.前提:需相应本地工具;依赖未满足由 bot(Grok Bot)安排.
+- [markitdown](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/markitdown/SKILL.md)[方法]PDF/Word/Excel/PPT/网页转 Markdown.何时用:读非纯文本文件.前提:需相应本地工具;依赖未满足由 bot(Grok Bot)安排.
 - [muse2api](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/muse2api/SKILL.md)[方法]本机 Muse 接口(聊天,生图,生视频),免费额度先 acc-02(微软号)后 acc-01(谷歌号)(zixwei 2026-11-01 10:37 ET).何时用:重活外包.前提:本地实例不可跨机器直连,环境另核.额外付费先经用户批准.密钥不外发.
 - [improve](improve/SKILL.md)[方法]代码库审计与实施计划:贵模型审计判断、写自包含实施计划,便宜模型执行;只读源码、不改代码.何时用:审计代码库、找改进机会、给另一 agent 写实施计划时.前提:支持 Agent Skills 格式的 agent;计划为纯 Markdown,任何 agent 都能执行.
 - [modern-web-guidance](modern-web-guidance/SKILL.md)[方法]现代 Web 开发最佳实践检索:写前端/HTML/CSS/客户端 JS 前先查 250 篇标准指南(对话框、表单、暗色模式、性能、无障碍等),防过时写法.何时用:写或改网页 UI、CSS 布局/动画、客户端 JS 逻辑前.**前提:需安装 modern-web-guidance CLI(npm:npx modern-web-guidance@latest),不装 CLI 技能不可用.**
