@@ -3,7 +3,7 @@
 标记:功能分类统一为 [方法].方法可以写环境前提.标签只标明条目性质,不授予执行能力或权限.索引用方括号;中文方头括号会被 muse2api 当成引用标记删掉(2026-11-01 实测).
 用法:任务匹配到某条时,按「何时用」行事,并先满足该条写明的环境前提.团队规则见另贴的<外部 AI 工具通用规则>,冲突时以规则为准.
 说明:部分方法全文在本库,沿用本库现有链接,即相对路径 `<名字>/SKILL.md`.部分方法全文在私有库 [AI-Fleet-memory](https://github.com/zixwei/AI-Fleet-memories) 的 `shared/skills/<技能名>/SKILL.md`,需用户已授予相应访问授权;未获授权由 ai总管安排.不得假定其他 AI 能访问 Grok Bot 的 `/workspace` 或 `127.0.0.1`.不将私有正文或凭据公开.指向私有库的链接只是索引地址.并不是每条方法在本公开库都有正文.
-计数:按条目67公开(66本库方法+1跨库规则),14私有引用/组合;按文件目标66本库公开,1跨库规则,15私有(hg一条3链接,gsq组合无href);另2仓库主页导航,共84个Markdown链接.条目口径与文件目标口径分开计.全表仍是81条,其中80条方法,1条规则.口径:66 是本库实有目录数,81 是含私有引用的全表条目数(80 方法 + 1 规则).2026-11-15 新增第 9 节动画与视频 18 条,来源 X @Feljoy_ix 2026-11-14 帖子 https://x.com/feljoy_ix/status/2121787138455040333,除 remotion-skills 为上游原生 Agent Skill 外,其余 17 条为舰队包装技能(上游为库/工具,先读 README 再动手).
+计数:按条目66公开(65本库方法+1跨库规则),14私有引用/组合;按文件目标65本库公开,1跨库规则,15私有(hg一条3链接,gsq组合无href);另2仓库主页导航,共83个Markdown链接.条目口径与文件目标口径分开计.全表仍是80条,其中79条方法,1条规则.口径:65 是本库实有目录数,80 是含私有引用的全表条目数(79 方法 + 1 规则).2026-11-15 新增第 9 节动画与视频 17 条,来源 X @Feljoy_ix 2026-11-14 帖子 https://x.com/feljoy_ix/status/2121787138455040333,均为舰队包装技能(上游为库/工具,先读 README 再动手).remotion-skills 未入库:其仓库无 LICENSE 文件,许可证未核实,按 2026-11-15 用户令先不入库,核实后再入.
 
 ## 1. 规则(先读)
 - [zixwei-decisions](https://github.com/zixwei/AI-Fleet-rules/blob/main/SKILL.md)[规则库]所有 bot 动手前读规则清单,对照执行,新规则当场写入.全文在公开规则库 [zixwei/AI-Fleet-rules](https://github.com/zixwei/AI-Fleet-rules),不在本库.何时用:任何工作,发帖,回答前.
@@ -85,7 +85,6 @@
 - [socratic-tutor](socratic-tutor/SKILL.md)[方法]苏格拉底式教学:用户明确要求教、考、练到掌握时用:诊断定位、0-5 级技能图、一次只问一题、间隔复习、最后考核;不用于一次性解释问题.何时用:用户说教我、考我、带我练到会时.
 
 ## 9. 动画与视频(2026-11-15 新增,来源 X @Feljoy_ix 2026-11-14 帖子)
-- [remotion-skills](remotion-skills/SKILL.md)[方法]Remotion 官方 Agent Skill:React 代码做视频,建 composition,写 markup,Studio 预览,渲染导出.何时用:做动画视频,特别是口播/图表视频时.前提:渲染需无头浏览器与 ffmpeg.
 - [motion-canvas](motion-canvas/SKILL.md)[方法]Motion Canvas:用代码做图解动画,讲概念,公式,流程.何时用:要做图解动画时.
 - [motion](motion/SKILL.md)[方法]Motion:网页/React 动效,页面切换,布局动画,手势,滚动联动.何时用:网页或 React 应用要加动效时.
 - [ola](ola/SKILL.md)[方法]Ola:数值平滑变动,计数,价格,进度不跳变.何时用:屏幕数字要平滑变化时.

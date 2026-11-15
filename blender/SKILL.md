@@ -2,7 +2,7 @@
 name: blender
 description: Use when doing rigging and character animation: 3D characters, rigs, keyframes, and rendered animation in Blender.
 ---
-来源:https://github.com/blender/blender (2026-11-15 ET 核实,stars 22,030,语言 C++,许可证 未核实(API 返回 NOASSERTION,见仓库 LICENSE 文件)).帖子来源:https://x.com/feljoy_ix/status/2121787138455040333 (@Feljoy_ix,2026-11-14 21:07 ET).
+来源:https://github.com/blender/blender (2026-11-15 ET 核实,stars 22,030,语言 C++,许可证 GNU GPL v2 (doc/license/GPL-license.txt 与 COPYING, 2026-11-15 核实)).帖子来源:https://x.com/feljoy_ix/status/2121787138455040333 (@Feljoy_ix,2026-11-14 21:07 ET).
 
 > 注意:上游仓库本身是库/工具,不是原生 Agent Skill(除 remotion-skills 外).本文件是舰队包装技能:先读上游 README,再按下面流程动手.不要凭记忆编 API,示例以 README 为准.
 
