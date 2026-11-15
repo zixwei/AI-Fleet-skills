@@ -1,9 +1,9 @@
 # zixwei 团队共享技能索引(可直接粘贴给 Muse / Perplexity / Manus / Gemini / Copilot)
-更新:2026-11-14｜维护:ai总管
+更新:2026-11-15｜维护:ai总管
 标记:功能分类统一为 [方法].方法可以写环境前提.标签只标明条目性质,不授予执行能力或权限.索引用方括号;中文方头括号会被 muse2api 当成引用标记删掉(2026-11-01 实测).
 用法:任务匹配到某条时,按「何时用」行事,并先满足该条写明的环境前提.团队规则见另贴的<外部 AI 工具通用规则>,冲突时以规则为准.
 说明:部分方法全文在本库,沿用本库现有链接,即相对路径 `<名字>/SKILL.md`.部分方法全文在私有库 [AI-Fleet-memory](https://github.com/zixwei/AI-Fleet-memories) 的 `shared/skills/<技能名>/SKILL.md`,需用户已授予相应访问授权;未获授权由 ai总管安排.不得假定其他 AI 能访问 Grok Bot 的 `/workspace` 或 `127.0.0.1`.不将私有正文或凭据公开.指向私有库的链接只是索引地址.并不是每条方法在本公开库都有正文.
-计数:按条目49公开(48本库方法+1跨库规则),14私有引用/组合;按文件目标48本库公开,1跨库规则,15私有(hg一条3链接,gsq组合无href);另2仓库主页导航,共66个Markdown链接.条目口径与文件目标口径分开计.全表仍是63条,其中62条方法,1条规则.口径:48 是本库实有目录数,63 是含私有引用的全表条目数(62 方法 + 1 规则).
+计数:按条目67公开(66本库方法+1跨库规则),14私有引用/组合;按文件目标66本库公开,1跨库规则,15私有(hg一条3链接,gsq组合无href);另2仓库主页导航,共84个Markdown链接.条目口径与文件目标口径分开计.全表仍是81条,其中80条方法,1条规则.口径:66 是本库实有目录数,81 是含私有引用的全表条目数(80 方法 + 1 规则).2026-11-15 新增第 9 节动画与视频 18 条,来源 X @Feljoy_ix 2026-11-14 帖子 https://x.com/feljoy_ix/status/2121787138455040333,除 remotion-skills 为上游原生 Agent Skill 外,其余 17 条为舰队包装技能(上游为库/工具,先读 README 再动手).
 
 ## 1. 规则(先读)
 - [zixwei-decisions](https://github.com/zixwei/AI-Fleet-rules/blob/main/SKILL.md)[规则库]所有 bot 动手前读规则清单,对照执行,新规则当场写入.全文在公开规则库 [zixwei/AI-Fleet-rules](https://github.com/zixwei/AI-Fleet-rules),不在本库.何时用:任何工作,发帖,回答前.
@@ -83,3 +83,23 @@
 - [improve](improve/SKILL.md)[方法]代码库审计与实施计划:贵模型审计判断、写自包含实施计划,便宜模型执行;只读源码、不改代码.何时用:审计代码库、找改进机会、给另一 agent 写实施计划时.前提:支持 Agent Skills 格式的 agent;计划为纯 Markdown,任何 agent 都能执行.
 - [modern-web-guidance](modern-web-guidance/SKILL.md)[方法]现代 Web 开发最佳实践检索:写前端/HTML/CSS/客户端 JS 前先查 250 篇标准指南(对话框、表单、暗色模式、性能、无障碍等),防过时写法.何时用:写或改网页 UI、CSS 布局/动画、客户端 JS 逻辑前.**前提:需安装 modern-web-guidance CLI(npm:npx modern-web-guidance@latest),不装 CLI 技能不可用.**
 - [socratic-tutor](socratic-tutor/SKILL.md)[方法]苏格拉底式教学:用户明确要求教、考、练到掌握时用:诊断定位、0-5 级技能图、一次只问一题、间隔复习、最后考核;不用于一次性解释问题.何时用:用户说教我、考我、带我练到会时.
+
+## 9. 动画与视频(2026-11-15 新增,来源 X @Feljoy_ix 2026-11-14 帖子)
+- [remotion-skills](remotion-skills/SKILL.md)[方法]Remotion 官方 Agent Skill:React 代码做视频,建 composition,写 markup,Studio 预览,渲染导出.何时用:做动画视频,特别是口播/图表视频时.前提:渲染需无头浏览器与 ffmpeg.
+- [motion-canvas](motion-canvas/SKILL.md)[方法]Motion Canvas:用代码做图解动画,讲概念,公式,流程.何时用:要做图解动画时.
+- [motion](motion/SKILL.md)[方法]Motion:网页/React 动效,页面切换,布局动画,手势,滚动联动.何时用:网页或 React 应用要加动效时.
+- [ola](ola/SKILL.md)[方法]Ola:数值平滑变动,计数,价格,进度不跳变.何时用:屏幕数字要平滑变化时.
+- [anime-js](anime-js/SKILL.md)[方法]Anime.js:时间线,错峰动效,DOM/SVG/CSS/JS 对象动画.何时用:要做时间线动画与错峰动效时.
+- [manim](manim/SKILL.md)[方法]Manim:Python 公式与图形动画,数学讲解视频.何时用:要做公式与图形动画时.前提:需 ffmpeg 与 LaTeX.
+- [shifty](shifty/SKILL.md)[方法]Shifty:缓动与补间,数值,颜色,对象属性平滑插值.何时用:要做缓动与补间时.
+- [two-js](two-js/SKILL.md)[方法]Two.js:2D 矢量动画,SVG/Canvas/WebGL 渲染.何时用:要做 2D 矢量动画时.
+- [lottie-web](lottie-web/SKILL.md)[方法]Lottie Web:播 After Effects 导出的轻量矢量动画 JSON.何时用:要在网页播轻量矢量动画时.前提:动画需在 After Effects 里先做好.
+- [tweenjs](tweenjs/SKILL.md)[方法]TweenJS:按顺序动起来的补间链,延迟与回调.何时用:要按顺序动起来的动画时.前提:先确认用 CreateJS 版还是独立 @tweenjs/tween.js 版.
+- [lume](lume/SKILL.md)[方法]LUME:用 HTML 做 3D 场景,3D 元素写成 HTML 标签.何时用:要用 HTML 做 3D 场景时.
+- [gifenc](gifenc/SKILL.md)[方法]gifenc:GIF 导出,帧/像素/Canvas 快速编码成 GIF.何时用:要导出 GIF 时.
+- [konva](konva/SKILL.md)[方法]Konva:可触摸交互的画布,设计编辑器,白板,图表.何时用:要做可交互画布时.
+- [blender](blender/SKILL.md)[方法]Blender:绑定与角色动画,3D 角色,关键帧,渲染视频.何时用:要做绑定与角色动画时.前提:桌面软件,不是 npm 包.
+- [three-js](three-js/SKILL.md)[方法]Three.js:网页 3D 场景,WebGL 渲染,相机,光,材质,模型.何时用:要做 3D 场景时.
+- [godot](godot/SKILL.md)[方法]Godot:游戏动画,2D/3D 游戏,AnimationPlayer,过场.何时用:要做游戏动画时.前提:桌面编辑器,不是 npm 包.
+- [babylon-js](babylon-js/SKILL.md)[方法]Babylon.js:网页 3D 渲染与动画,场景,物理,游戏类 3D 应用.何时用:要做 3D 渲染与动画时.
+- [proton](proton/SKILL.md)[方法]Proton:粒子,发射器,行为,火花,烟,火.何时用:要做粒子动效时.
