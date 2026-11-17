@@ -2,7 +2,7 @@
 
 zixwei 的公共审美储备库,供舰队所有成员共用.内容是已定稿的配图与设计规则,加上用户发来的好设计的拆解与解读.做图、做帖、做教程、做空间之前,先查这里找配图风格或设计规则.
 
-2026-11-17 整库从私有记忆库 (AI-Fleet-memory/shared-user-memory/审美储备/) 搬进技能库 (AI-Fleet-skills/aesthetic-reserve/),现为公开.搬迁时有一处修复:拆解/其他/2026-11-07-autumn-harvest-market.md 在旧库里存的是 base64 编码文本,搬迁时解码为可读 markdown,内容不变.
+2026-11-17 整库从私有记忆库 (Agent-Fleet-memory/shared-user-memory/审美储备/) 搬进技能库 (Agent-Fleet-skills/aesthetic-reserve/),现为公开.搬迁时有一处修复:拆解/其他/2026-11-07-autumn-harvest-market.md 在旧库里存的是 base64 编码文本,搬迁时解码为可读 markdown,内容不变.
 
 ## 怎么用
 
