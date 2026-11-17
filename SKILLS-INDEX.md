@@ -1,9 +1,9 @@
 # zixwei 团队共享技能索引(可直接粘贴给 Muse / Perplexity / Manus(Manus) / Gemini(Gemini) / Copilot)
-更新:2026-11-15｜维护:bot(Grok Bot)
+更新:2026-11-17｜维护:bot(Grok Bot)
 标记:功能分类统一为 [方法].方法可以写环境前提.标签只标明条目性质,不授予执行能力或权限.索引用方括号;中文方头括号会被 muse2api 当成引用标记删掉(2026-11-01 实测).
 用法:任务匹配到某条时,按「何时用」行事,并先满足该条写明的环境前提.团队规则见另贴的<外部 AI 工具通用规则>,冲突时以规则为准.
 说明:部分方法全文在本库,沿用本库现有链接,即相对路径 `<名字>/SKILL.md`.部分方法全文在私有库 [AI-Fleet-memory](https://github.com/zixwei/AI-Fleet-memories) 的 `shared/skills/<技能名>/SKILL.md`,需用户已授予相应访问授权;未获授权由 bot(Grok Bot)安排.不得假定其他 AI 能访问 Grok Bot(Grok Bot) 的 `/workspace` 或 `127.0.0.1`.不将私有正文或凭据公开.指向私有库的链接只是索引地址.并不是每条方法在本公开库都有正文.
-计数:按条目66公开(65本库方法+1跨库规则),14私有引用/组合;按文件目标65本库公开,1跨库规则,15私有(hg一条3链接,gsq组合无href);另2仓库主页导航,共83个Markdown链接.条目口径与文件目标口径分开计.全表仍是80条,其中79条方法,1条规则.口径:65 是本库实有目录数,80 是含私有引用的全表条目数(79 方法 + 1 规则).2026-11-15 新增第 9 节动画与视频 17 条,来源 X @Feljoy_ix 2026-11-14 帖子 https://x.com/feljoy_ix/status/2121787138455040333,均为舰队包装技能(上游为库/工具,先读 README 再动手).remotion-skills 未入库:其仓库无 LICENSE 文件,许可证未核实,按 2026-11-15 用户令先不入库,核实后再入.
+计数:按条目95公开(94本库方法+1跨库规则),14私有引用/组合;按文件目标94本库公开,1跨库规则,15私有(hg一条3链接,gsq组合无href);另2仓库主页导航,共112个Markdown链接.条目口径与文件目标口径分开计.全表仍是109条,其中108条方法,1条规则.口径:94 是本库实有目录数,109 是含私有引用的全表条目数(108 方法 + 1 规则).2026-11-15 新增第 9 节动画与视频 17 条,来源 X @Feljoy_ix 2026-11-14 帖子 https://x.com/feljoy_ix/status/2121787138455040333,均为舰队包装技能(上游为库/工具,先读 README 再动手).remotion-skills 未入库:其仓库无 LICENSE 文件,许可证未核实,按 2026-11-15 用户令先不入库,核实后再入.2026-11-17 新增 last30days(跨平台近 30 天调研,第 4 节)与 EL4CTEO blender-* 28 条(Blender 5.3 专业工作流,第 9 节),来源 Trendshift 每日发现,用户 2026-11-17 09:14 ET 令.Blender 三选一:选 EL4CTEO 全套;arjun988/blender-skills(94 技能,4,055 stars,MIT)本次不收(风格类为主且全藏于 .cursor/skills/ 隐藏目录,留待单评子集);库里已有 blender/ 包装技能保留,EL4CTEO 的 blender-character-rigging、blender-animation、blender-facial-shapekeys 是同方向的深方法版.
 
 ## 1. 规则(先读)
 - [zixwei-decisions](https://github.com/zixwei/AI-Fleet-rules/blob/main/SKILL.md)[规则库]所有 bot 动手前读规则清单,对照执行,新规则当场写入.全文在公开规则库 [zixwei/AI-Fleet-rules](https://github.com/zixwei/AI-Fleet-rules),不在本库.何时用:任何工作,发帖,回答前.
@@ -37,6 +37,7 @@
 - [result-relay](result-relay/SKILL.md)[方法]结果转达:把执行结果和链接原样报给需要的人.何时用:做完要汇报时.
 - [user-report](user-report/SKILL.md)[方法]给用户汇报:结论+链接,简短直接.何时用:向 zixwei 汇报时.
 - [humanizer](humanizer/SKILL.md)[方法]去掉 AI 腔(套话,三连排比,破折号,空洞收尾).何时用:改写英文/中文文稿.
+- [last30days](last30days/SKILL.md)[方法]跨平台近 30 天调研:并行搜 Reddit、X、YouTube、TikTok、HN、Polymarket 与全网内容,按真实互动打分综合成带引用的简报.何时用:要调研近 30 天某话题的社区真实说法时.前提:需 Python 3.12+;X、YouTube、TikTok、Instagram 需自带 key/登录态;Reddit、HN、Polymarket、GitHub 零配置即用.
 
 ## 5. 队伍与 Bot
 - [roster-management](roster-management/SKILL.md)[方法]编队与花名册:管成员名单,分工,状态.何时用:增减成员,查分工时.
@@ -98,6 +99,34 @@
 - [gifenc](gifenc/SKILL.md)[方法]gifenc:GIF 导出,帧/像素/Canvas 快速编码成 GIF.何时用:要导出 GIF 时.
 - [konva](konva/SKILL.md)[方法]Konva:可触摸交互的画布,设计编辑器,白板,图表.何时用:要做可交互画布时.
 - [blender](blender/SKILL.md)[方法]Blender:绑定与角色动画,3D 角色,关键帧,渲染视频.何时用:要做绑定与角色动画时.前提:桌面软件,不是 npm 包.
+- [blender-core](blender-core/SKILL.md)[方法]Blender 5.2+ 总入口:任何 Blender 任务先读它,按路由表分到各 blender-* 专技能;MCP 实时或 headless CLI 跑 bpy.何时用:任何 Blender、bpy、.blend 任务开头.前提:Blender 5.2 LTS+,建议 5.3.
+- [blender-addon-development](blender-addon-development/SKILL.md)[方法]写 Blender 5.3 插件/扩展:manifest、算子/面板/菜单、撤销/模态、打包、测试与发布.何时用:新建或修 Blender 插件、工具、界面时.
+- [blender-animation](blender-animation/SKILL.md)[方法]关键帧、动作槽、NLA、动捕重定向、根运动与导出.何时用:做关键帧、动作、动捕或动画导出时.
+- [blender-asset-qa](blender-asset-qa/SKILL.md)[方法]资产交付前必过审查关:查破面、法线、非流形、UV、权重、材质并出多角度审查图.何时用:建模、导出或交付前验收资产时.
+- [blender-character-rigging](blender-character-rigging/SKILL.md)[方法]角色绑定:Rigify、IK/FK、蒙皮权重、游戏骨架与变形测试.何时用:做骨架、蒙皮或权重时.
+- [blender-clothing](blender-clothing/SKILL.md)[方法]游戏服装:按身体分区制衣、布料模拟垂褶、分层穿搭与穿帮检查.何时用:做衬衫、裤子、护甲或可换服装时.
+- [blender-environment-kits](blender-environment-kits/SKILL.md)[方法]游戏场景:地形、生物群落散布与模块化套件度量校验.何时用:做关卡、地貌、森林、模块化建筑或地牢时.
+- [blender-export-pipelines](blender-export-pipelines/SKILL.md)[方法]导出预设:Roblox、Unity、Unreal、Godot/Web、USD,含比例、轴向与导出后校验.何时用:资产要离开 Blender 时.
+- [blender-facial-shapekeys](blender-facial-shapekeys/SKILL.md)[方法]面部绑定与表情:ARKit 52 混合形状、口型同步、左右拆分与引擎导出.何时用:做面部、表情、口型或表情键时.
+- [blender-game-optimization](blender-game-optimization/SKILL.md)[方法]实时引擎优化:面数/材质/贴图/骨骼预算、LOD、减面与 Draw Call.何时用:资产太重、导出前或要对标平台预算时.
+- [blender-geometry-nodes](blender-geometry-nodes/SKILL.md)[方法]几何节点:场、域、属性、实例化、模拟区与 JSON 建节点树.何时用:做散布、程序化资产/场景或参数化工具时.
+- [blender-hair-grooming](blender-hair-grooming/SKILL.md)[方法]毛发:发束曲线、梳理、Principled Hair 材质与游戏发卡.何时用:做头发、毛皮、胡须、眉毛或草丛时.
+- [blender-hardsurface-modeling](blender-hardsurface-modeling/SKILL.md)[方法]硬表面与道具建模:分段流程、修改器栈、中模/细分/高低模.何时用:做武器、载具、道具、建筑或机械件时.
+- [blender-lighting-lookdev](blender-lighting-lookdev/SKILL.md)[方法]灯光与相机:三点布光、HDRI、日光、链接灯光与转盘展示.何时用:布光、搭渲染场景或统一光下评材质时.
+- [blender-pbr-materials](blender-pbr-materials/SKILL.md)[方法]PBR 材质:金属/粗糙度规则、色彩空间、贴图组自动接线与引擎适配.何时用:新建、修或导出材质贴图时.
+- [blender-pipeline-automation](blender-pipeline-automation/SKILL.md)[方法]批量自动化:headless CLI、批量转格式、清点与渲染农场/CI 模式.何时用:批量任务、格式转换、库维护或搭管线时.
+- [blender-rendering](blender-rendering/SKILL.md)[方法]渲染:Cycles/EEVEE/Workbench 预设、GPU、降噪、色彩管理与批量渲染.何时用:渲静帧、动画或转盘时.
+- [blender-retopology-uv](blender-retopology-uv/SKILL.md)[方法]拓扑与 UV:自动拓扑、接缝、展开、像素密度与 UDIM.何时用:把雕刻/扫描/AI 网格转成游戏网格或备 UV 时.
+- [blender-scene-setup](blender-scene-setup/SKILL.md)[方法]场景搭建与审计:单位比例、集合布局、命名规范、链接与资产库.何时用:开新项目、整理 .blend 或交接导出前.
+- [blender-sculpting](blender-sculpting/SKILL.md)[方法]雕刻:体素重建、动态拓扑、多级细分与雕刻到游戏交接.何时用:做有机模型、角色、生物、岩石或烘焙源时.
+- [blender-simulation](blender-simulation/SKILL.md)[方法]物理:刚体、布料、流体、毛发动力学与 headless 烘焙.何时用:做破碎、垂布、旗帜、坠落、液体、烟雾或毛发运动时.
+- [blender-stylized-npr](blender-stylized-npr/SKILL.md)[方法]风格化/NPR:卡通着色、描边、线条与 Grease Pencil.何时用:做动漫、卡通、漫画或描边风格时.
+- [blender-texture-baking](blender-texture-baking/SKILL.md)[方法]贴图烘焙:高低模法线、AO、曲率、ORM 打包与烘焙缺陷修复.何时用:把雕刻或高模细节转到游戏网格、或把程序材质转贴图时.
+- [blender-texturing](blender-texturing/SKILL.md)[方法]贴图绘制:智能材质层(磨损、污垢、锈蚀)、贴花、Trim Sheets 与手绘.何时用:材质要做旧、贴花、Trim 或手绘时.
+- [blender-time-of-day](blender-time-of-day/SKILL.md)[方法]时间与氛围:实测天空与太阳、曝光平衡、高度雾与风格化氛围.何时用:做白天/夜晚、日落、多雾或氛围光场景时.
+- [blender-video-editing](blender-video-editing/SKILL.md)[方法]视频:剪辑序列、转场、字幕、音乐淡化与运动跟踪解算.何时用:剪渲染/实拍成片或做相机匹配时.
+- [blender-weather-fx](blender-weather-fx/SKILL.md)[方法]天气特效:循环雨雪、湿地面、水洼涟漪、积雪与风暴闪电.何时用:做雨、风暴、雪、湿街、水洼、尘埃或余烬场景时.
+- [blender-workflow-recipes](blender-workflow-recipes/SKILL.md)[方法]端到端 playbook:串联各 blender-* 技能带 QA 关,覆盖道具、角色、Roblox、程序化场景等.何时用:接到完整多阶段资产需求时.
 - [three-js](three-js/SKILL.md)[方法]Three.js:网页 3D 场景,WebGL 渲染,相机,光,材质,模型.何时用:要做 3D 场景时.
 - [godot](godot/SKILL.md)[方法]Godot:游戏动画,2D/3D 游戏,AnimationPlayer,过场.何时用:要做游戏动画时.前提:桌面编辑器,不是 npm 包.
 - [babylon-js](babylon-js/SKILL.md)[方法]Babylon.js:网页 3D 渲染与动画,场景,物理,游戏类 3D 应用.何时用:要做 3D 渲染与动画时.
