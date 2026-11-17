@@ -2,7 +2,7 @@
 更新:2026-11-17｜维护:bot(Grok Bot)
 标记:功能分类统一为 [方法].方法可以写环境前提.标签只标明条目性质,不授予执行能力或权限.索引用方括号;中文方头括号会被 muse2api 当成引用标记删掉(2026-11-01 实测).
 用法:任务匹配到某条时,按「何时用」行事,并先满足该条写明的环境前提.团队规则见另贴的<外部 AI 工具通用规则>,冲突时以规则为准.
-说明:部分方法全文在本库,沿用本库现有链接,即相对路径 `<名字>/SKILL.md`.部分方法全文在私有库 [AI-Fleet-memory](https://github.com/zixwei/AI-Fleet-memories) 的 `shared/skills/<技能名>/SKILL.md`,需用户已授予相应访问授权;未获授权由 bot(Grok Bot)安排.不得假定其他 AI 能访问 Grok Bot(Grok Bot) 的 `/workspace` 或 `127.0.0.1`.不将私有正文或凭据公开.指向私有库的链接只是索引地址.并不是每条方法在本公开库都有正文.
+说明:部分方法全文在本库,沿用本库现有链接,即相对路径 `<名字>/SKILL.md`.部分方法全文在私有库 [AI-Fleet-memory](https://github.com/zixwei/AI-Fleet-memory) 的 `shared/skills/<技能名>/SKILL.md`,需用户已授予相应访问授权;未获授权由 bot(Grok Bot)安排.不得假定其他 AI 能访问 Grok Bot(Grok Bot) 的 `/workspace` 或 `127.0.0.1`.不将私有正文或凭据公开.指向私有库的链接只是索引地址.并不是每条方法在本公开库都有正文.
 计数:按条目96公开(95本库方法+1跨库规则),14私有引用/组合;按文件目标95本库公开,1跨库规则,15私有(hg一条3链接,gsq组合无href);另2仓库主页导航,共113个Markdown链接.条目口径与文件目标口径分开计.全表仍是110条,其中109条方法,1条规则.口径:95 是本库实有目录数,110 是含私有引用的全表条目数(109 方法 + 1 规则).2026-11-17 审美储备整库搬入技能库,第 7 节新增 aesthetic-reserve 1 条,原私有记忆库 shared-user-memory/审美储备/ 已撤下.2026-11-15 新增第 9 节动画与视频 17 条,来源 X @Feljoy_ix 2026-11-14 帖子 https://x.com/feljoy_ix/status/2121787138455040333,均为舰队包装技能(上游为库/工具,先读 README 再动手).remotion-skills 未入库:其仓库无 LICENSE 文件,许可证未核实,按 2026-11-15 用户令先不入库,核实后再入.2026-11-17 补记:本轮 Trendshift 入库(last30days + EL4CTEO blender-* 28 条,任务 #vabyfo,提交 82c3c55a)的索引条目曾被同期 aesthetic-reserve 提交(cfa9c05,基于旧索引)覆盖,本次在 cfa9c05 基础上补回 29 条并重算计数(库 95 个方法).Blender 三选一:选 EL4CTEO 全套;arjun988/blender-skills(94 技能,4,055 stars,MIT)本次不收(风格类为主且全藏于 .cursor/skills/ 隐藏目录,留待单评子集);库里已有 blender/ 包装技能保留,EL4CTEO 的 blender-character-rigging、blender-animation、blender-facial-shapekeys 是同方向的深方法版.
 
 ## 1. 规则(先读)
@@ -49,16 +49,16 @@
 
 ## 6. 交易,行情与复盘(只研究,不荐股不下单;交易助手例外见 DECISIONS 第 8 节)
 - [gsq-timeseries-free](gsq-timeseries-free/SKILL.md)[方法]高盛 gs_quant 时序免费分析:波动率,回撤,beta,RSI 等,免账号.何时用:对一段价格序列做风险指标.全文在本库.
-- [global-stock-data](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/global-stock-data/SKILL.md)[方法]美股/港股代码取数:报价,K 线,期权链,SEC 文件,13F,财报,VIX,美债.何时用:美股数据.前提:对应 Python 与数据源;公开行情不统一要求账号.
-- [easy-tdx](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/easy-tdx/SKILL.md)[方法]通达信协议免密钥行情(A/美/港/期货),分钟线,指标.何时用:快速报价,K 线.前提:对应 Python 与数据源;免密钥,不按需账号处理.
-- [a-stock-data](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/a-stock-data/SKILL.md)[方法]A 股数据(资金流,估值,公告,研报,北向).何时用:只限 A 股,不与美股混用.前提:对应 Python 与数据源;公开行情不统一要求账号.
-- [finance-quant-skills](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/finance-quant-skills/SKILL.md)[方法]AKShare 多市场数据 + Backtrader 教学回测.何时用:历史回测练习.前提:对应 Python 与数据源;公开行情不统一要求账号.
-- [tradingagents-us](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/tradingagents-us/SKILL.md)[方法]美股多分析师多空辩论压力测试(经 muse2api 跑时不调用自带 SEC/行情数据,数字须再核),可给过往模型判断打分.何时用:交易助手做个股压力测试;风控复盘官做第二意见.评级不是建议.前提:框架与 LLM 环境,不带实盘权.
-- [tradingagents-astock](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/tradingagents-astock/SKILL.md)[方法]同框架 A 股版.何时用:A 股压力测试.前提:框架与 LLM 环境,不带实盘权.
+- [global-stock-data](https://github.com/zixwei/AI-Fleet-memory/blob/main/shared/skills/global-stock-data/SKILL.md)[方法]美股/港股代码取数:报价,K 线,期权链,SEC 文件,13F,财报,VIX,美债.何时用:美股数据.前提:对应 Python 与数据源;公开行情不统一要求账号.
+- [easy-tdx](https://github.com/zixwei/AI-Fleet-memory/blob/main/shared/skills/easy-tdx/SKILL.md)[方法]通达信协议免密钥行情(A/美/港/期货),分钟线,指标.何时用:快速报价,K 线.前提:对应 Python 与数据源;免密钥,不按需账号处理.
+- [a-stock-data](https://github.com/zixwei/AI-Fleet-memory/blob/main/shared/skills/a-stock-data/SKILL.md)[方法]A 股数据(资金流,估值,公告,研报,北向).何时用:只限 A 股,不与美股混用.前提:对应 Python 与数据源;公开行情不统一要求账号.
+- [finance-quant-skills](https://github.com/zixwei/AI-Fleet-memory/blob/main/shared/skills/finance-quant-skills/SKILL.md)[方法]AKShare 多市场数据 + Backtrader 教学回测.何时用:历史回测练习.前提:对应 Python 与数据源;公开行情不统一要求账号.
+- [tradingagents-us](https://github.com/zixwei/AI-Fleet-memory/blob/main/shared/skills/tradingagents-us/SKILL.md)[方法]美股多分析师多空辩论压力测试(经 muse2api 跑时不调用自带 SEC/行情数据,数字须再核),可给过往模型判断打分.何时用:交易助手做个股压力测试;风控复盘官做第二意见.评级不是建议.前提:框架与 LLM 环境,不带实盘权.
+- [tradingagents-astock](https://github.com/zixwei/AI-Fleet-memory/blob/main/shared/skills/tradingagents-astock/SKILL.md)[方法]同框架 A 股版.何时用:A 股压力测试.前提:框架与 LLM 环境,不带实盘权.
 - gsq 非时序[方法]高盛 gs_quant 其余技能.何时用:gs_quant 高级功能.前提:本地构造,模拟单测,处理已有结果可免账号;Marquee 定价,真实数据,服务器回测需机构授权.9 个非 timeseries 完整指南位于私有方法入口内的 GUIDE.md,需访问授权;运行环境与GS授权另核验.
-- hg 交易台[方法]Hyperliquid 交易台(17 个):读账户,行情,风控限额,下单流程,复盘,事故处理.何时用:仅 Hyperliquid;任何下单须 zixwei 本人批准.其中 [hg-desk-risk-limits](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/hg-desk-risk-limits/SKILL.md),[hg-desk-post-trade-review](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/hg-desk-post-trade-review/SKILL.md),[hg-desk-execution-protocol](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/hg-desk-execution-protocol/SKILL.md) 的方法可借鉴到 IBKR 模拟盘.前提:公开行情,info 与公开 WebSocket 免签名;账户读需地址;签名交易需安全配置及用户批准.其余 14 个目录名以私有库实际技能名为准,本索引不编造链接.
-- [openstock](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/openstock/SKILL.md)[方法]本地看盘网页.何时用:人看图.前提:本地实例不可跨机器直连,环境另核.
-- [tick-stock-panel](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/tick-stock-panel/SKILL.md)[方法]选股监控回测面板.何时用:面板 API.前提:本地实例不可跨机器直连,环境另核.
+- hg 交易台[方法]Hyperliquid 交易台(17 个):读账户,行情,风控限额,下单流程,复盘,事故处理.何时用:仅 Hyperliquid;任何下单须 zixwei 本人批准.其中 [hg-desk-risk-limits](https://github.com/zixwei/AI-Fleet-memory/blob/main/shared/skills/hg-desk-risk-limits/SKILL.md),[hg-desk-post-trade-review](https://github.com/zixwei/AI-Fleet-memory/blob/main/shared/skills/hg-desk-post-trade-review/SKILL.md),[hg-desk-execution-protocol](https://github.com/zixwei/AI-Fleet-memory/blob/main/shared/skills/hg-desk-execution-protocol/SKILL.md) 的方法可借鉴到 IBKR 模拟盘.前提:公开行情,info 与公开 WebSocket 免签名;账户读需地址;签名交易需安全配置及用户批准.其余 14 个目录名以私有库实际技能名为准,本索引不编造链接.
+- [openstock](https://github.com/zixwei/AI-Fleet-memory/blob/main/shared/skills/openstock/SKILL.md)[方法]本地看盘网页.何时用:人看图.前提:本地实例不可跨机器直连,环境另核.
+- [tick-stock-panel](https://github.com/zixwei/AI-Fleet-memory/blob/main/shared/skills/tick-stock-panel/SKILL.md)[方法]选股监控回测面板.何时用:面板 API.前提:本地实例不可跨机器直连,环境另核.
 
 ## 7. 内容,配图与设计
 - [chart-chooser](chart-chooser/SKILL.md)[方法]选图表类型,坐标轴基线,配色,防误导.何时用:做行情图前.
@@ -70,7 +70,7 @@
 - [impeccable](impeccable/SKILL.md)[方法]设计与打磨:细节与完成度.何时用:做或审网页,Page,落地页.
 - [hallmark](hallmark/SKILL.md)[方法]Hallmark 配图风格.何时用:做配图时.
 - [aesthetic-reserve](aesthetic-reserve/SKILL.md)[方法]审美储备:已定稿配图与设计规则,好设计的拆解与解读(金融信息图,海报封面,卡通插画,界面空间,其他),供舰队共用.何时用:做图、做帖、做教程、做空间要找配图风格或设计规则时,先读本技能再动手.
-- [hyperframes-video](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/hyperframes-video/SKILL.md)[方法]HTML 本地渲染短视频(图表动画,标题卡,字幕,竖版),不上传不付费.何时用:需要视频素材时.前提:需相应本地工具;依赖未满足由 bot(Grok Bot)安排.
+- [hyperframes-video](https://github.com/zixwei/AI-Fleet-memory/blob/main/shared/skills/hyperframes-video/SKILL.md)[方法]HTML 本地渲染短视频(图表动画,标题卡,字幕,竖版),不上传不付费.何时用:需要视频素材时.前提:需相应本地工具;依赖未满足由 bot(Grok Bot)安排.
 
 ## 8. 工程,技能与 AI 工具
 - [matt-pocock-skills](matt-pocock-skills/SKILL.md)[方法]TDD,代码审查,调 bug,规格拆票,PR,交接,拷问方案等工程流程.何时用:写代码.
@@ -79,9 +79,9 @@
 - [skill-creator](skill-creator/SKILL.md)[方法]写技能:把方法写成可复用的技能.何时用:扩展能力,沉淀新方法时.
 - [find-skills](find-skills/SKILL.md)[方法]找可装技能.何时用:需要新技能时.
 - [muse-playbook](muse-playbook/SKILL.md)[方法]300 条 Muse 玩法(含 Muse 做不到的「实话实说」).何时用:问 Muse 能做什么,怎么说.
-- [codebase-memory](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/codebase-memory/SKILL.md)[方法]把大代码库建成图谱查调用关系.何时用:读陌生仓库.前提:需相应本地工具;依赖未满足由 bot(Grok Bot)安排.
-- [markitdown](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/markitdown/SKILL.md)[方法]PDF/Word/Excel/PPT/网页转 Markdown.何时用:读非纯文本文件.前提:需相应本地工具;依赖未满足由 bot(Grok Bot)安排.
-- [muse2api](https://github.com/zixwei/AI-Fleet-memories/blob/main/shared/skills/muse2api/SKILL.md)[方法]本机 Muse 接口(聊天,生图,生视频),免费额度先 acc-02(微软号)后 acc-01(谷歌号)(zixwei 2026-11-01 10:37 ET).何时用:重活外包.前提:本地实例不可跨机器直连,环境另核.额外付费先经用户批准.密钥不外发.
+- [codebase-memory](https://github.com/zixwei/AI-Fleet-memory/blob/main/shared/skills/codebase-memory/SKILL.md)[方法]把大代码库建成图谱查调用关系.何时用:读陌生仓库.前提:需相应本地工具;依赖未满足由 bot(Grok Bot)安排.
+- [markitdown](https://github.com/zixwei/AI-Fleet-memory/blob/main/shared/skills/markitdown/SKILL.md)[方法]PDF/Word/Excel/PPT/网页转 Markdown.何时用:读非纯文本文件.前提:需相应本地工具;依赖未满足由 bot(Grok Bot)安排.
+- [muse2api](https://github.com/zixwei/AI-Fleet-memory/blob/main/shared/skills/muse2api/SKILL.md)[方法]本机 Muse 接口(聊天,生图,生视频),免费额度先 acc-02(微软号)后 acc-01(谷歌号)(zixwei 2026-11-01 10:37 ET).何时用:重活外包.前提:本地实例不可跨机器直连,环境另核.额外付费先经用户批准.密钥不外发.
 - [improve](improve/SKILL.md)[方法]代码库审计与实施计划:贵模型审计判断、写自包含实施计划,便宜模型执行;只读源码、不改代码.何时用:审计代码库、找改进机会、给另一 agent 写实施计划时.前提:支持 Agent Skills 格式的 agent;计划为纯 Markdown,任何 agent 都能执行.
 - [modern-web-guidance](modern-web-guidance/SKILL.md)[方法]现代 Web 开发最佳实践检索:写前端/HTML/CSS/客户端 JS 前先查 250 篇标准指南(对话框、表单、暗色模式、性能、无障碍等),防过时写法.何时用:写或改网页 UI、CSS 布局/动画、客户端 JS 逻辑前.**前提:需安装 modern-web-guidance CLI(npm:npx modern-web-guidance@latest),不装 CLI 技能不可用.**
 - [socratic-tutor](socratic-tutor/SKILL.md)[方法]苏格拉底式教学:用户明确要求教、考、练到掌握时用:诊断定位、0-5 级技能图、一次只问一题、间隔复习、最后考核;不用于一次性解释问题.何时用:用户说教我、考我、带我练到会时.
