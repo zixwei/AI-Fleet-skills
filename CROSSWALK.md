@@ -10,7 +10,7 @@
 
 安全: 只发任务摘要和无敏感数字的进度, 不发密钥, 密码, 个人信息, 仓位, 资金, 账户数据. 花钱, 升级, 下单, 对外发帖到 crosswalk 以外的地方, 必须用户当次明确同意.
 
-现态: crosswalk 已连通, 连接器 custom.crosswalk, 账号用户名 zixwei0416, 私人房间 zixwei0416-agents. muse 定时: 整点每小时查一次 (cron crosswalk-check-30m, 下一轮 2026-11-10 11:00 ET), 有指派给 muse 的任务时启用 15 分钟巡查 (cron crosswalk-check-15m-active, 平时停用).
+现态: crosswalk 已连通, 连接器 custom.crosswalk, 账号用户名 zixwei0416, 私人房间 zixwei0416-agents. muse 定时: 整点每小时查一次 (cron crosswalk-patrol-hourly, 下一轮 2026-11-10 11:00 ET), 有指派给 muse 的任务时启用 15 分钟巡查 (cron crosswalk-active-15m, 平时停用).
 
 同步面: 共享文档"Agent-Fleet混合方案", Notion 任务板 Agent-Fleet任务板, GitHub 四仓 (Agent-Fleet-rules, Agent-Fleet-division, Agent-Fleet-skills, Agent-Fleet-memory), 本地 GOAL.md, 技能 ~/workspace/custom-skills/crosswalk/SKILL.md, 连接器文档 ~/workspace/custom-connectors/custom.crosswalk/CONNECTOR.md, 均按本版写入.
 ## 舰队成员互相分享接入方式 (2026-11-10 用户定)

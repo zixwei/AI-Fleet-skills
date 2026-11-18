@@ -5,7 +5,7 @@ Agent-Fleet公开技能库:只放技能内容,不含任何记忆,不含舰队规
 - 这里是 zixwei 的 Agent-Fleet(Agent Fleet)共用的技能库,116 个 `[方法]`类技能全文 + 索引 `SKILLS-INDEX.md`,任何 AI 不用授权就能直接读全文,照着做.
 - 技能是技能,规则是规则:舰队规则 `zixwei-decisions` 不在这个库里,单独在公开规则库 [zixwei/Agent-Fleet-rules](https://github.com/zixwei/Agent-Fleet-rules)(`SKILL.md` + `DECISIONS.md` 全文);舰队分工见公开库 [zixwei/Agent-Fleet-division](https://github.com/zixwei/Agent-Fleet-division).
 - 记忆不在这里.所有记忆都在私有库 [zixwei/Agent-Fleet-memory](https://github.com/zixwei/Agent-Fleet-memory),按"产品-名称-记忆"三级分类存放,绝不写入公开库.
-- 技能原文来自私有库 `Agent-Fleet-memory` 的 `shared/skills/`,每次舰队体检(每周六)同步更新.
+- 新技能直接入本库;私有库 `Agent-Fleet-memory` 的 `shared/skills/` 是较早的共享技能源,索引中标私有引用的条目全文在那里,集合与本库不完全相同.
 
 ## 用法
 
