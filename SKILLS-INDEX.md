@@ -3,7 +3,7 @@
 标记:功能分类统一为 [方法].方法可以写环境前提.标签只标明条目性质,不授予执行能力或权限.索引用方括号;中文方头括号会被 muse2api 当成引用标记删掉(2026-11-01 实测).
 用法:任务匹配到某条时,按「何时用」行事,并先满足该条写明的环境前提.团队规则见另贴的<外部 AI 工具通用规则>,冲突时以规则为准.
 说明:部分方法全文在本库,沿用本库现有链接,即相对路径 `<名字>/SKILL.md`.部分方法全文在私有库 [Agent-Fleet-memory](https://github.com/zixwei/Agent-Fleet-memory) 的 `shared/skills/<技能名>/SKILL.md`,需用户已授予相应访问授权;未获授权由 bot(Grok Bot)安排.不得假定其他 AI 能访问 Grok Bot(Grok Bot) 的 `/workspace` 或 `127.0.0.1`.不将私有正文或凭据公开.指向私有库的链接只是索引地址.并不是每条方法在本公开库都有正文.
-计数:按条目98公开(97本库方法+1跨库规则),14私有引用/组合;按文件目标97本库公开,1跨库规则,15私有(hg一条3链接,gsq组合无href);另2仓库主页导航,共115个Markdown链接.条目口径与文件目标口径分开计.全表112条,其中111条方法,1条规则.口径:97 是本库实有目录数,112 是含私有引用的全表条目数(111 方法 + 1 规则).2026-11-17 审美储备整库搬入技能库,第 7 节新增 aesthetic-reserve 1 条,原私有记忆库 shared-user-memory/审美储备/ 已撤下.2026-11-15 新增第 9 节动画与视频 17 条,来源 X @Feljoy_ix 2026-11-14 帖子 https://x.com/feljoy_ix/status/2121787138455040333,均为舰队包装技能(上游为库/工具,先读 README 再动手).2026-11-18 用户定:技能本质上是一段提示词,不涉及侵权风险,LICENSE 不再作为入库门槛;remotion-skills (NO LICENSE) 现可入库,本次仅更新本备注.2026-11-17 补记:本轮 Trendshift 入库(last30days + EL4CTEO blender-* 28 条,任务 #vabyfo,提交 82c3c55a)的索引条目曾被同期 aesthetic-reserve 提交(cfa9c05,基于旧索引)覆盖,本次在 cfa9c05 基础上补回 29 条并重算计数(库 95 个方法).Blender 三选一:选 EL4CTEO 全套;arjun988/blender-skills(94 技能,4,055 stars,MIT)本次不收(风格类为主且全藏于 .cursor/skills/ 隐藏目录,留待单评子集);库里已有 blender/ 包装技能保留,EL4CTEO 的 blender-character-rigging、blender-animation、blender-facial-shapekeys 是同方向的深方法版.2026-11-17 子集入库:arjun988/blender-skills 子集 blender-style-director 1 条 (任务 #ji33nx),收风格+导演+流水线 58 技能,排除 36,见该条目;上游 stars 4,064 (2026-11-17 ET 核实).2026-11-18 motion-design 入库:LottieFiles motion-design-skill (MIT),第 9 节新增 1 条,来源 X @dawei38 2026-11-17 帖子 https://x.com/dawei38/status/2122886849727480170.
+计数:按条目111公开(110本库方法+1跨库规则),14私有引用/组合;按文件目标110本库公开,1跨库规则,15私有(hg一条3链接,gsq组合无href);另2仓库主页导航,共128个Markdown链接.条目口径与文件目标口径分开计.全表125条,其中124条方法,1条规则.口径:110 是本库实有目录数,125 是含私有引用的全表条目数(124 方法 + 1 规则).2026-11-17 审美储备整库搬入技能库,第 7 节新增 aesthetic-reserve 1 条,原私有记忆库 shared-user-memory/审美储备/ 已撤下.2026-11-15 新增第 9 节动画与视频 17 条,来源 X @Feljoy_ix 2026-11-14 帖子 https://x.com/feljoy_ix/status/2121787138455040333,均为舰队包装技能(上游为库/工具,先读 README 再动手).2026-11-18 用户定:技能本质上是一段提示词,不涉及侵权风险,LICENSE 不再作为入库门槛;remotion-skills (NO LICENSE) 已于 2026-11-18 全量入库,第 9 节 13 条.2026-11-17 补记:本轮 Trendshift 入库(last30days + EL4CTEO blender-* 28 条,任务 #vabyfo,提交 82c3c55a)的索引条目曾被同期 aesthetic-reserve 提交(cfa9c05,基于旧索引)覆盖,本次在 cfa9c05 基础上补回 29 条并重算计数(库 95 个方法).Blender 三选一:选 EL4CTEO 全套;arjun988/blender-skills(94 技能,4,055 stars,MIT)本次不收(风格类为主且全藏于 .cursor/skills/ 隐藏目录,留待单评子集);库里已有 blender/ 包装技能保留,EL4CTEO 的 blender-character-rigging、blender-animation、blender-facial-shapekeys 是同方向的深方法版.2026-11-17 子集入库:arjun988/blender-skills 子集 blender-style-director 1 条 (任务 #ji33nx),收风格+导演+流水线 58 技能,排除 36,见该条目;上游 stars 4,064 (2026-11-17 ET 核实).2026-11-18 motion-design 入库:LottieFiles motion-design-skill (MIT),第 9 节新增 1 条,来源 X @dawei38 2026-11-17 帖子 https://x.com/dawei38/status/2122886849727480170.2026-11-18 remotion-skills 全量入库:remotion-dev/skills 13 技能 (NO LICENSE, 上游版本 4.0.544),第 9 节新增 13 条,计数 97->110.
 
 ## 1. 规则(先读)
 - [zixwei-decisions](https://github.com/zixwei/Agent-Fleet-rules/blob/main/SKILL.md)[规则库]所有 bot 动手前读规则清单,对照执行,新规则当场写入.全文在公开规则库 [zixwei/Agent-Fleet-rules](https://github.com/zixwei/Agent-Fleet-rules),不在本库.何时用:任何工作,发帖,回答前.
@@ -134,3 +134,16 @@
 - [babylon-js](babylon-js/SKILL.md)[方法]Babylon.js:网页 3D 渲染与动画,场景,物理,游戏类 3D 应用.何时用:要做 3D 渲染与动画时.
 - [proton](proton/SKILL.md)[方法]Proton:粒子,发射器,行为,火花,烟,火.何时用:要做粒子动效时.
 - [motion-design](motion-design/SKILL.md)[方法]Motion Design(LottieFiles):动效设计原则,时间,缓动,编排,迪士尼动画原则,做有情绪的动画与过渡,适用 CSS/Framer Motion/GSAP/Lottie/Spring.何时用:要做动画,过渡,微交互,加载态,页面切换,滚动动效时.
+- [remotion-best-practices](remotion-best-practices/SKILL.md)[方法]Remotion 总入口:囊括其余 12 个技能,不确定用哪个时先读它.何时用:要用 Remotion 做视频但不确定从哪个技能入手时.
+- [remotion-create](remotion-create/SKILL.md)[方法]Remotion 新建:新建 Remotion 项目或合成.何时用:要新建 Remotion 项目或视频合成时.
+- [remotion-markup](remotion-markup/SKILL.md)[方法]Remotion 标记:写 Remotion React 标记的最佳实践,合成,动画,排版,媒体,特效,音频,字体,时间.何时用:要写 Remotion 合成与动画标记时.
+- [remotion-studio](remotion-studio/SKILL.md)[方法]Remotion 预览:在 Studio 里看视频预览.何时用:要在 Studio 预览视频时.
+- [remotion-render](remotion-render/SKILL.md)[方法]Remotion 渲染:导出视频,静帧或可编辑 OpenTimelineIO 时间线.何时用:要渲染导出视频或静帧时.
+- [remotion-maps](remotion-maps/SKILL.md)[方法]Remotion 地图:地图动画,静态地图,动画路线与标记,地理讲解,Mapbox/MapLibre/MapTiler/GeoJSON/CesiumJS 3D 飞越.何时用:要做地图动画时.
+- [remotion-captions](remotion-captions/SKILL.md)[方法]Remotion 字幕:转写,显示与动画字幕.何时用:要做字幕时.
+- [remotion-saas](remotion-saas/SKILL.md)[方法]Remotion 应用:用 Remotion 做应用与产品集成的架构指导.何时用:要用 Remotion 做应用时.
+- [remotion-interactivity](remotion-interactivity/SKILL.md)[方法]Remotion 交互:让图层,时间与样式在 Studio 里可编辑.何时用:要让 Remotion 代码在 Studio 里可点可选时.
+- [remotion-docs](remotion-docs/SKILL.md)[方法]Remotion 文档:搜 Remotion 文档,取任意页面为 Markdown.何时用:要查 Remotion API 与组件用法时.
+- [remotion-license](remotion-license/SKILL.md)[方法]Remotion 许可:找 Remotion 许可信息,常见问题,条款与购买处.何时用:要查 Remotion 许可与购买时.
+- [remotion-upgrade](remotion-upgrade/SKILL.md)[方法]Remotion 升级:升级 Remotion 与相关包,Mediabunny 包与已装技能.何时用:要升级 Remotion 时.
+- [remotion-multimedia](remotion-multimedia/SKILL.md)[方法]Remotion 媒体:Mediabunny 浏览器多媒体处理,取视频音频元数据.何时用:要取音视频元数据或处理浏览器多媒体时.
