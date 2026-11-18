@@ -3,7 +3,7 @@
 标记:功能分类统一为 [方法].方法可以写环境前提.标签只标明条目性质,不授予执行能力或权限.索引用方括号;中文方头括号会被 muse2api 当成引用标记删掉(2026-11-01 实测).
 用法:任务匹配到某条时,按「何时用」行事,并先满足该条写明的环境前提.团队规则见另贴的<外部 AI 工具通用规则>,冲突时以规则为准.
 说明:部分方法全文在本库,沿用本库现有链接,即相对路径 `<名字>/SKILL.md`.部分方法全文在私有库 [Agent-Fleet-memory](https://github.com/zixwei/Agent-Fleet-memory) 的 `shared/skills/<技能名>/SKILL.md`,需用户已授予相应访问授权;未获授权由 bot(Grok Bot)安排.不得假定其他 AI 能访问 Grok Bot(Grok Bot) 的 `/workspace` 或 `127.0.0.1`.不将私有正文或凭据公开.指向私有库的链接只是索引地址.并不是每条方法在本公开库都有正文.
-计数:按条目111公开(110本库方法+1跨库规则),14私有引用/组合;按文件目标110本库公开,1跨库规则,15私有(hg一条3链接,gsq组合无href);另2仓库主页导航,共128个Markdown链接.条目口径与文件目标口径分开计.全表125条,其中124条方法,1条规则.口径:110 是本库实有目录数,125 是含私有引用的全表条目数(124 方法 + 1 规则).2026-11-17 审美储备整库搬入技能库,第 7 节新增 aesthetic-reserve 1 条,原私有记忆库 shared-user-memory/审美储备/ 已撤下.2026-11-15 新增第 9 节动画与视频 17 条,来源 X @Feljoy_ix 2026-11-14 帖子 https://x.com/feljoy_ix/status/2121787138455040333,均为舰队包装技能(上游为库/工具,先读 README 再动手).2026-11-18 用户定:技能本质上是一段提示词,不涉及侵权风险,LICENSE 不再作为入库门槛;remotion-skills (NO LICENSE) 已于 2026-11-18 全量入库,第 9 节 13 条.2026-11-17 补记:本轮 Trendshift 入库(last30days + EL4CTEO blender-* 28 条,任务 #vabyfo,提交 82c3c55a)的索引条目曾被同期 aesthetic-reserve 提交(cfa9c05,基于旧索引)覆盖,本次在 cfa9c05 基础上补回 29 条并重算计数(库 95 个方法).Blender 三选一:选 EL4CTEO 全套;arjun988/blender-skills(94 技能,4,055 stars,MIT)本次不收(风格类为主且全藏于 .cursor/skills/ 隐藏目录,留待单评子集);库里已有 blender/ 包装技能保留,EL4CTEO 的 blender-character-rigging、blender-animation、blender-facial-shapekeys 是同方向的深方法版.2026-11-17 子集入库:arjun988/blender-skills 子集 blender-style-director 1 条 (任务 #ji33nx),收风格+导演+流水线 58 技能,排除 36,见该条目;上游 stars 4,064 (2026-11-17 ET 核实).2026-11-18 motion-design 入库:LottieFiles motion-design-skill (MIT),第 9 节新增 1 条,来源 X @dawei38 2026-11-17 帖子 https://x.com/dawei38/status/2122886849727480170.2026-11-18 remotion-skills 全量入库:remotion-dev/skills 13 技能 (NO LICENSE, 上游版本 4.0.544),第 9 节新增 13 条,计数 97->110.
+计数:按条目117公开(116本库方法+1跨库规则),14私有引用/组合;按文件目标116本库公开,1跨库规则,15私有(hg一条3链接,gsq组合无href);另2仓库主页导航,共134个Markdown链接.条目口径与文件目标口径分开计.全表131条,其中130条方法,1条规则.口径:116 是本库实有目录数,131 是含私有引用的全表条目数(130 方法 + 1 规则).2026-11-17 审美储备整库搬入技能库,第 7 节新增 aesthetic-reserve 1 条,原私有记忆库 shared-user-memory/审美储备/ 已撤下.2026-11-15 新增第 9 节动画与视频 17 条,来源 X @Feljoy_ix 2026-11-14 帖子 https://x.com/feljoy_ix/status/2121787138455040333,均为舰队包装技能(上游为库/工具,先读 README 再动手).2026-11-18 用户定:技能本质上是一段提示词,不涉及侵权风险,LICENSE 不再作为入库门槛;remotion-skills (NO LICENSE) 已于 2026-11-18 全量入库,第 9 节 13 条.2026-11-17 补记:本轮 Trendshift 入库(last30days + EL4CTEO blender-* 28 条,任务 #vabyfo,提交 82c3c55a)的索引条目曾被同期 aesthetic-reserve 提交(cfa9c05,基于旧索引)覆盖,本次在 cfa9c05 基础上补回 29 条并重算计数(库 95 个方法).Blender 三选一:选 EL4CTEO 全套;arjun988/blender-skills(94 技能,4,055 stars,MIT)本次不收(风格类为主且全藏于 .cursor/skills/ 隐藏目录,留待单评子集);库里已有 blender/ 包装技能保留,EL4CTEO 的 blender-character-rigging、blender-animation、blender-facial-shapekeys 是同方向的深方法版.2026-11-17 子集入库:arjun988/blender-skills 子集 blender-style-director 1 条 (任务 #ji33nx),收风格+导演+流水线 58 技能,排除 36,见该条目;上游 stars 4,064 (2026-11-17 ET 核实).2026-11-18 motion-design 入库:LottieFiles motion-design-skill (MIT),第 9 节新增 1 条,来源 X @dawei38 2026-11-17 帖子 https://x.com/dawei38/status/2122886849727480170.2026-11-18 remotion-skills 全量入库:remotion-dev/skills 13 技能 (NO LICENSE, 上游版本 4.0.544),第 9 节新增 13 条,计数 97->110.2026-11-18 小红书 CC 的 AI 思考局 TOP 10 补齐:新增 karpathy-guidelines, graphify, archify, i-have-adhd, diagram-design, book-to-skill 6 条,计数 110->116;其中 ponytail, ui-ux-pro-max, impeccable, humanizer 4 条库里已有.截图 Star 数为约数,已按 GitHub 实时核实:graphify 149,877, archify 97,618, i-have-adhd 61,574, diagram-design 68,070, book-to-skill 38,345;karpathy-guidelines 无同名仓库,取 duolahypercho/andrej-karpathy-skills(292 stars,MIT);graphify 仓库内无 SKILL.md,技能正文取自官方 PyPI graphifyy 0.9.112 安装器模板(agents 版);archify 未入 examples/ 预渲染 HTML.
 
 ## 1. 规则(先读)
 - [zixwei-decisions](https://github.com/zixwei/Agent-Fleet-rules/blob/main/SKILL.md)[规则库]所有 bot 动手前读规则清单,对照执行,新规则当场写入.全文在公开规则库 [zixwei/Agent-Fleet-rules](https://github.com/zixwei/Agent-Fleet-rules),不在本库.何时用:任何工作,发帖,回答前.
@@ -38,6 +38,7 @@
 - [user-report](user-report/SKILL.md)[方法]给用户汇报:结论+链接,简短直接.何时用:向 zixwei 汇报时.
 - [humanizer](humanizer/SKILL.md)[方法]去掉 AI 腔(套话,三连排比,破折号,空洞收尾).何时用:改写英文/中文文稿.
 - [last30days](last30days/SKILL.md)[方法]跨平台近 30 天调研:并行搜 Reddit、X、YouTube、TikTok、HN、Polymarket 与全网内容,按真实互动打分综合成带引用的简报.何时用:要调研近 30 天某话题的社区真实说法时.前提:需 Python 3.12+;X、YouTube、TikTok、Instagram 需自带 key/登录态;Reddit、HN、Polymarket、GitHub 零配置即用.
+- [i-have-adhd](i-have-adhd/SKILL.md)[方法]按 ADHD 阅读方式塑形输出:先给下一步行动,编号多步任务,每轮重述状态,给具体时间估计.何时用:要简短可执行,先行动后解释的回答时.
 
 ## 5. 队伍与 Bot
 - [roster-management](roster-management/SKILL.md)[方法]编队与花名册:管成员名单,分工,状态.何时用:增减成员,查分工时.
@@ -71,6 +72,8 @@
 - [hallmark](hallmark/SKILL.md)[方法]Hallmark 配图风格.何时用:做配图时.
 - [aesthetic-reserve](aesthetic-reserve/SKILL.md)[方法]审美储备:已定稿配图与设计规则,好设计的拆解与解读(金融信息图,海报封面,卡通插画,界面空间,其他),供舰队共用.何时用:做图、做帖、做教程、做空间要找配图风格或设计规则时,先读本技能再动手.
 - [hyperframes-video](https://github.com/zixwei/Agent-Fleet-memory/blob/main/shared/skills/hyperframes-video/SKILL.md)[方法]HTML 本地渲染短视频(图表动画,标题卡,字幕,竖版),不上传不付费.何时用:需要视频素材时.前提:需相应本地工具;依赖未满足由 bot(Grok Bot)安排.
+- [archify](archify/SKILL.md)[方法]把想法与代码库转成交互网页:架构图,流程图,时序图,数据流,ER 图等,带校验的可探索单页 HTML.何时用:要画架构图,流程图,时序图,ER 图或一页讲解时.前提:需 Node.js.
+- [diagram-design](diagram-design/SKILL.md)[方法]编辑级图表设计:统一风格的流程图,架构图,时序图,看板,甘特图等,导出 SVG/PNG.何时用:要做成品图表时.
 
 ## 8. 工程,技能与 AI 工具
 - [matt-pocock-skills](matt-pocock-skills/SKILL.md)[方法]TDD,代码审查,调 bug,规格拆票,PR,交接,拷问方案等工程流程.何时用:写代码.
@@ -85,6 +88,9 @@
 - [improve](improve/SKILL.md)[方法]代码库审计与实施计划:贵模型审计判断、写自包含实施计划,便宜模型执行;只读源码、不改代码.何时用:审计代码库、找改进机会、给另一 agent 写实施计划时.前提:支持 Agent Skills 格式的 agent;计划为纯 Markdown,任何 agent 都能执行.
 - [modern-web-guidance](modern-web-guidance/SKILL.md)[方法]现代 Web 开发最佳实践检索:写前端/HTML/CSS/客户端 JS 前先查 250 篇标准指南(对话框、表单、暗色模式、性能、无障碍等),防过时写法.何时用:写或改网页 UI、CSS 布局/动画、客户端 JS 逻辑前.**前提:需安装 modern-web-guidance CLI(npm:npx modern-web-guidance@latest),不装 CLI 技能不可用.**
 - [socratic-tutor](socratic-tutor/SKILL.md)[方法]苏格拉底式教学:用户明确要求教、考、练到掌握时用:诊断定位、0-5 级技能图、一次只问一题、间隔复习、最后考核;不用于一次性解释问题.何时用:用户说教我、考我、带我练到会时.
+- [karpathy-guidelines](karpathy-guidelines/SKILL.md)[方法]Karpathy 编程指南:先想清楚再写码,保持简单,小步改动,按可验证标准验收.何时用:写码,审码,重构,调 bug 前.来源:duolahypercho/andrej-karpathy-skills(292 stars,MIT),库内无同名仓库,取星数最高移植版.
+- [graphify](graphify/SKILL.md)[方法]把代码与文档连成可查询知识图谱:建图,查调用关系,答架构问题.何时用:读陌生代码库,查架构与文件关系时.前提:需装 graphify CLI(pip install graphifyy 或 uv tool install);仓库内无 SKILL.md,技能正文取自官方 PyPI graphifyy 0.9.112 安装器模板(agents 版).
+- [book-to-skill](book-to-skill/SKILL.md)[方法]把书与文档(PDF,EPUB,DOCX,HTML,Markdown 等)转成可复用技能:抽框架,心智模型,原则与反模式.何时用:要把一本技术书变成可执行技能时.前提:需按 SKILL.md 装好 Python 依赖.
 
 ## 9. 动画与视频(2026-11-15 新增,来源 X @Feljoy_ix 2026-11-14 帖子)
 - [motion-canvas](motion-canvas/SKILL.md)[方法]Motion Canvas:用代码做图解动画,讲概念,公式,流程.何时用:要做图解动画时.
