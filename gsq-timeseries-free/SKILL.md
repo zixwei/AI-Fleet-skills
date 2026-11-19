@@ -6,6 +6,15 @@ description: >-
   correlation, RSI, moving averages, Bollinger bands, MACD) — no Goldman Sachs
   account needed.
 ---
+
+## 运行前提(给其他 AI)
+
+- 依赖与授权:不需要高盛账号,也不建立 GsSession.只对调用者自备的价格序列做本地计算.`Dataset`,资产查询和行情拉取不是本技能,那些要 Marquee 账号.
+- 输入 / 输出 / 入口:日期索引的收盘价序列.指定解释器 `/workspace/stock-skills/gs-quant/.venv/bin/python`.输出波动率,回撤,beta,RSI 等.函数表在正文.
+- 未知:其他环境是否装有 gs_quant 2.2.1,未知.没有该库时不要假装已经装好.
+- 库内入口:函数表就在本文件,没有另附完整指南.缺失依赖:`/workspace/stock-skills/gs-quant/.venv` 与 `/workspace/stock-skills/gs-quant/smoke_test.py` 不在本仓库.不得假定其他 AI 可访问 `/workspace`.本文件不是含解释器的自足完整版.
+- 环境不符:请 ai总管安排具备该库的成员执行.读到方法不等于已经具备能力.
+
 > Not part of Goldman Sachs' bundled skills; written from the gs_quant 2.2.1 source and a verified offline smoke test (`/workspace/stock-skills/gs-quant/smoke_test.py`). Run only with `/workspace/stock-skills/gs-quant/.venv/bin/python`.
 
 # Free local analytics with `gs_quant.timeseries`
