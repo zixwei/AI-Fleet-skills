@@ -92,8 +92,8 @@ arjun988/blender-skills 的风格 + 导演 + 流水线子集.上游 94 技能全
 
 上游 `.claude/skills/references/`: asset-pipeline.md (通用管线), reference-image-match.md, reference-analysis-template.md, visual-match-checklist.md, validation-checklist.md, mcp-integration.md, naming-conventions.md, polycount-budgets.md.
 
-## 未收录 (36 技能) 及原因
+## 未收录 (35 技能) 及原因
 
 - 与 EL4CTEO blender-* 重复的基础与技术技能 (33): blender-modeler、hard-surface、prop-artist、vehicle-artist、environment-artist、vegetation-artist、character-artist、creature-artist、sculpting、retopology、uv-workflow、materials、texture-workflow、hair-groom、cloth-sim、lookdev、geometry-nodes、lighting、camera-cinematography、rendering、animation、rigging、physics-sim、procedural-modeling、scene-assembly、set-dressing、asset-optimization、lod-pipeline、export-pipeline、unity-export、unreal-export、godot-export、qa-review.库内已有同方向的深方法版 (如 blender-hardsurface-modeling、blender-sculpting、blender-retopology-uv、blender-pbr-materials、blender-character-rigging、blender-animation、blender-export-pipelines、blender-asset-qa、blender-game-optimization),不重复收.
 - 与 EL4CTEO 同方向 (1): vfx-fx (与 blender-simulation、blender-weather-fx 同方向).
-- 不在本次子集范围内 (2): archviz (建筑可视化垂直方向)、collision-proxy (引擎导出前置技术步骤,blender-export-pipelines 已覆盖导出流程).如需可单评.
+- 不在本次子集范围内 (1): collision-proxy (引擎导出前置技术步骤,blender-export-pipelines 已覆盖导出流程).archviz 已单独收录为 archviz/SKILL.md (2026-11-18).
