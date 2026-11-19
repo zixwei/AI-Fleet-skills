@@ -1,0 +1,354 @@
+---
+name: ecc
+description: affaan-m/ECC - engineering skills and language rules for coding agents around a fixed loop: plan, test, implement, review, verify, remember, improve. Covers TDD, research, security, docs, frontend, data, ML and ops. Use for any software engineering task when a matching sub-skill exists.
+license: MIT
+---
+来源:https://github.com/affaan-m/ECC (2026-11-19 ET 核实,上游提交 3f14a10,MIT).Trendshift 2026-11-15 每日榜发现,用户 2026-11-19 09:19 ET 点头入库.
+
+# ECC 工程技能集 (327 技能 + 各语言 rules)
+
+怎么做工程:plan,test,implement,review,verify,remember,improve 固定循环;TDD,调研,安全,文档,前端,数据,ML,运维的方法与检查清单.
+
+## 适用平台与前提
+
+- 正文按 Claude Code 插件写,也适配 Codex,Cursor,OpenCode.本库只收方法:skills/ 的 SKILL.md 与文字参考,rules/ 各语言规范.
+- 没收:上游的 71 个专项 agent,hooks,命令,安装器,AgentShield 扫描器,技能自带脚本;要用装上游.
+- 上游另有付费 ECC Pro (GitHub App).不订阅,不花钱;开源本体 MIT 免费.
+
+## 怎么用
+
+1. 按任务在下面清单里找对口技能,读 `skills/<名字>/SKILL.md`.
+2. 写某语言代码前读 `rules/common/` 与 `rules/<语言>/`.
+
+## 与库里已有技能的分工
+
+- matt-pocock-skills,addy-agent-skills,karpathy-guidelines:同为工程方法,量少而精,优先读.ECC 量大面广,找不到对口时来这里查.
+
+## 收录清单
+- [accessibility](skills/accessibility/SKILL.md):Design, implement, and audit accessible UI to WCAG 2.2 Level AA across Web, iOS, and Android — semantic ARIA roles and labels, accessibility traits and hints, focus management, contrast, target size, 
+- [agent-architecture-audit](skills/agent-architecture-audit/SKILL.md):Full-stack diagnostic for agent and LLM applications.
+- [agent-eval](skills/agent-eval/SKILL.md):Head-to-head comparison of coding agents (Claude Code, Aider, Codex, etc.) on custom tasks with pass rate, cost, time, and consistency metrics.
+- [agent-harness-construction](skills/agent-harness-construction/SKILL.md):Design and optimize AI agent action spaces, tool definitions, and observation formatting for higher completion rates.
+- [agent-introspection-debugging](skills/agent-introspection-debugging/SKILL.md):Structured self-debugging workflow for AI agent failures using capture, diagnosis, contained recovery, and introspection reports.
+- [agent-payment-x402](skills/agent-payment-x402/SKILL.md):Add x402 payment execution to AI agents with per-task budgets, spending controls, and non-custodial wallets.
+- [agent-runtime-gateway-smoke-test](skills/agent-runtime-gateway-smoke-test/SKILL.md):Verify a local agent API, temporary gateway tunnel, and remote sandbox callback with a tool-free task, then restore the original app connection.
+- [agent-security-hardening](skills/agent-security-hardening/SKILL.md):Security hardening guidance for AI agent frameworks that process untrusted content, invoke tools, write workspace files, manage runtime identifiers, or handle credentials.
+- [agent-self-evaluation](skills/agent-self-evaluation/SKILL.md):Use after completing any non-trivial task.
+- [agent-sort](skills/agent-sort/SKILL.md):Build an evidence-backed ECC install plan for a specific repo by sorting skills, commands, rules, hooks, and extras into DAILY vs LIBRARY buckets using parallel repo-aware review passes.
+- [agentic-engineering](skills/agentic-engineering/SKILL.md):Operate as an agentic engineer using eval-first execution, decomposition, and cost-aware model routing.
+- [agentic-os](skills/agentic-os/SKILL.md):Build persistent multi-agent operating systems on Claude Code.
+- [ai-first-engineering](skills/ai-first-engineering/SKILL.md):Engineering operating model for teams where AI agents generate a large share of implementation output.
+- [ai-regression-testing](skills/ai-regression-testing/SKILL.md):Regression testing strategies for AI-assisted development.
+- [android-clean-architecture](skills/android-clean-architecture/SKILL.md):Clean Architecture patterns for Android and Kotlin Multiplatform projects — module structure, dependency rules, UseCases, Repositories, and data layer patterns.
+- [angular-developer](skills/angular-developer/SKILL.md):Generates Angular code and provides architectural guidance.
+- [api-connector-builder](skills/api-connector-builder/SKILL.md):Build a new API connector or provider by matching the target repo's existing integration pattern exactly.
+- [api-design](skills/api-design/SKILL.md):REST API design patterns including resource naming, status codes, pagination, filtering, error responses, versioning, and rate limiting for production APIs.
+- [architecture-decision-records](skills/architecture-decision-records/SKILL.md):Capture architectural decisions as numbered ADR markdown files in docs/adr/ with context, alternatives considered, consequences, and an index README.
+- [article-writing](skills/article-writing/SKILL.md):Write articles, guides, blog posts, tutorials, newsletter issues, and other long-form content in a distinctive voice derived from supplied examples or brand guidance.
+- [automation-audit-ops](skills/automation-audit-ops/SKILL.md):Evidence-first automation inventory and overlap audit workflow for ECC.
+- [autonomous-agent-harness](skills/autonomous-agent-harness/SKILL.md):Transform Claude Code into a fully autonomous agent system with persistent memory, scheduled operations, computer use, and task queuing.
+- [autonomous-loops](skills/autonomous-loops/SKILL.md):Patterns and architectures for autonomous Claude Code loops — from simple sequential pipelines to RFC-driven multi-agent DAG systems.
+- [backend-patterns](skills/backend-patterns/SKILL.md):Backend architecture patterns, API design, database optimization, and server-side best practices for Node.js, Express, and Next.js API routes.
+- [benchmark-methodology](skills/benchmark-methodology/SKILL.md):Score a scoped competitor set into comparable profile cards: nine weighted dimensions (positioning, voice, visual craft, offer packaging, evidence, enterprise-readiness, thought leadership, pricing, c
+- [benchmark-optimization-loop](skills/benchmark-optimization-loop/SKILL.md):Turn a user's improvement goal into a bounded benchmark-guided loop: define success and hard constraints, establish a baseline, test one-hypothesis variants, and promote the best measured admissible r
+- [benchmark](skills/benchmark/SKILL.md):Measure performance baselines and detect regressions across browser Core Web Vitals (LCP, INP, CLS, page weight), API endpoint latency percentiles, and build/test feedback times, with before/after com
+- [bengali-nlp](skills/bengali-nlp/SKILL.md):Bengali (Bangla) text processing patterns including Unicode normalization, script detection, tokenization, conjunct handling, and Bangla-specific NLP best practices for AI applications.
+- [blender-motion-state-inspection](skills/blender-motion-state-inspection/SKILL.md):Inspects Blender characters, rigs, poses, animation retargeting, ground contact, facing direction, or model-vs-motion alignment where screenshots alone are not enough.
+- [blueprint](skills/blueprint/SKILL.md):Turn a one-line objective into a step-by-step construction plan for multi-session, multi-agent engineering projects: one-PR-sized steps with self-contained context briefs, dependency graph with parall
+- [brand-discovery](skills/brand-discovery/SKILL.md):Run a structured, resumable multi-session brand identity interview across 8 modules (purpose, positioning, audience, personality, voice, narrative, founder tension) using laddering, 5 Whys, and projec
+- [brand-voice](skills/brand-voice/SKILL.md):Build a source-derived writing style profile from real posts, essays, launch notes, docs, or site copy, then reuse that profile across content, outreach, and social workflows.
+- [brownfield-retrospective](skills/brownfield-retrospective/SKILL.md):Run the ECC engineering process retroactively against an existing project slice.
+- [browser-qa](skills/browser-qa/SKILL.md):Run automated post-deploy UI verification with a browser automation MCP (claude-in-chrome, Playwright, or Puppeteer): console-error and Core Web Vitals smoke checks, form and auth-flow interaction tes
+- [bun-runtime](skills/bun-runtime/SKILL.md):Bun as runtime, package manager, bundler, and test runner.
+- [canary-watch](skills/canary-watch/SKILL.md):Monitors and verifies deployed URLs after releases by checking HTTP endpoints, SSE streams, static assets, console errors, and performance regressions after deploys, merges, or dependency upgrades.
+- [carrier-relationship-management](skills/carrier-relationship-management/SKILL.md):Manage truckload, LTL, and intermodal carrier portfolios: sourcing and FMCSA vetting, freight rate and fuel-surcharge negotiation, RFPs and routing guides, carrier scorecards, allocation, and renewals
+- [change-impact](skills/change-impact/SKILL.md):Perform evidence-backed impact analysis before changing code, data, interfaces, or governance documents, then compare the planned impact with the actual diff after implementation.
+- [cisco-ios-patterns](skills/cisco-ios-patterns/SKILL.md):Cisco IOS and IOS-XE review patterns for show commands, config hierarchy, wildcard masks, ACL placement, interface hygiene, and safe change-window verification.
+- [ck](skills/ck/SKILL.md):Persistent per-project memory for Claude Code (Context Keeper) driven by deterministic Node.js /ck commands: init, save, resume, info, list, forget, and v1-to-v2 migrate, plus a SessionStart hook that
+- [click-path-audit](skills/click-path-audit/SKILL.md):Trace every user-facing button/touchpoint through its full state change sequence to find bugs where functions individually work but cancel each other out, produce wrong final state, or leave the UI in
+- [clickhouse-io](skills/clickhouse-io/SKILL.md):ClickHouse database patterns, query optimization, analytics, and data engineering best practices for high-performance analytical workloads.
+- [code-tour](skills/code-tour/SKILL.md):Create CodeTour `.tour` files — persona-targeted, step-by-step walkthroughs with real file and line anchors.
+- [codebase-onboarding](skills/codebase-onboarding/SKILL.md):Analyze an unfamiliar codebase and generate a structured onboarding guide with architecture map, key entry points, conventions, and a starter CLAUDE.md.
+- [codehealth-mcp](skills/codehealth-mcp/SKILL.md):Real-time structural Code Health via CodeScene MCP — review before edits, verify score deltas after changes, gate commits and PRs.
+- [coding-standards](skills/coding-standards/SKILL.md):Baseline cross-project coding conventions for naming, readability, immutability, and code-quality review.
+- [competitive-platform-analysis](skills/competitive-platform-analysis/SKILL.md):Use when scoping a competitive landscape — identifying, categorising, and score-filtering a competitor set before any benchmarking begins.
+- [competitive-report-structure](skills/competitive-report-structure/SKILL.md):Assemble scored competitor profile cards (from benchmark-methodology) into a decision-grade competitive report with landscape map, competitor tiers, benchmarking matrix, white-space analysis, strategi
+- [compose-multiplatform-patterns](skills/compose-multiplatform-patterns/SKILL.md):Compose Multiplatform and Jetpack Compose patterns for KMP projects — state management, navigation, theming, performance, and platform-specific UI.
+- [config-gc](skills/config-gc/SKILL.md):Garbage collection for your Claude Code configuration.
+- [config-health](skills/config-health/SKILL.md):Runtime configuration integrity monitoring for Claude Code.
+- [configure-ecc](skills/configure-ecc/SKILL.md):Run the conversational ECC setup wizard inside the current harness: inventory the install, collect scope (user/project/local) and hook mode (off/minimal/standard/strict) in Claude Code, use Codex's na
+- [connections-optimizer](skills/connections-optimizer/SKILL.md):Reorganize the user's X and LinkedIn network with review-first pruning, add/follow recommendations, and channel-specific warm outreach drafted in the user's real voice.
+- [content-engine](skills/content-engine/SKILL.md):Create platform-native content systems for X, LinkedIn, TikTok, YouTube, newsletters, and repurposed multi-platform campaigns.
+- [content-hash-cache-pattern](skills/content-hash-cache-pattern/SKILL.md):Cache expensive file processing results using SHA-256 content hashes — path-independent, auto-invalidating, with service layer separation.
+- [context-and-decisions](skills/context-and-decisions/SKILL.md):Govern stable domain context with a narrowly scoped CONTEXT.md when needed, and route hard-to-reverse decisions to ECC's existing architecture-decision-records skill.
+- [context-budget](skills/context-budget/SKILL.md):Routes live context checks to the native Codex or Claude Code meter without scanning files, and performs a bounded static component audit only when explicitly requested.
+- [continuous-agent-loop](skills/continuous-agent-loop/SKILL.md):Patterns for continuous autonomous agent loops with quality gates, evals, and recovery controls.
+- [continuous-learning-v2](skills/continuous-learning-v2/SKILL.md):Instinct-based learning system that observes sessions via hooks, creates atomic instincts with confidence scoring, and evolves them into skills/commands/agents.
+- [continuous-learning](skills/continuous-learning/SKILL.md):[DEPRECATED - use continuous-learning-v2] Legacy v1 stop-hook skill extractor.
+- [contract-first](skills/contract-first/SKILL.md):Coordinate frontend/backend or service-to-service work through one authoritative machine-checkable contract (OpenAPI, AsyncAPI, Protocol Buffers, or JSON Schema), with generated consumer types and con
+- [conventional-commit-review](skills/conventional-commit-review/SKILL.md):Reviews staged changes and drafts a Conventional Commits-compliant commit message with the right type, scope, and length.
+- [cost-aware-llm-pipeline](skills/cost-aware-llm-pipeline/SKILL.md):Cost optimization patterns for LLM API usage — model routing by task complexity, budget tracking, retry logic, and prompt caching.
+- [cost-tracking](skills/cost-tracking/SKILL.md):Track and report Claude Code token usage, spending, and budgets from the local ECC cost-tracker metrics log.
+- [council-multi-model](skills/council-multi-model/SKILL.md):Add one optional external Codex critique after the existing council has produced a decision draft.
+- [council](skills/council/SKILL.md):Convene a four-voice council for ambiguous decisions, tradeoffs, and go/no-go calls.
+- [counterparty-channel-discipline](skills/counterparty-channel-discipline/SKILL.md):Per-channel strict prompts, mention gating, silent observation, and a communication autonomy policy for agents that sit in shared channels with external counterparties.
+- [cpp-coding-standards](skills/cpp-coding-standards/SKILL.md):C++ coding standards based on the C++ Core Guidelines (isocpp.github.io).
+- [cpp-testing](skills/cpp-testing/SKILL.md):Use only when writing/updating/fixing C++ tests, configuring GoogleTest/CTest, diagnosing failing or flaky tests, or adding coverage/sanitizers.
+- [crosspost](skills/crosspost/SKILL.md):Multi-platform content distribution across X, LinkedIn, Threads, and Bluesky.
+- [csharp-testing](skills/csharp-testing/SKILL.md):C# and .NET testing patterns with xUnit, FluentAssertions, mocking, integration tests, and test organization best practices.
+- [customer-billing-ops](skills/customer-billing-ops/SKILL.md):Operate customer billing workflows such as subscriptions, refunds, churn triage, billing-portal recovery, and plan analysis using connected billing tools like Stripe.
+- [customs-trade-compliance](skills/customs-trade-compliance/SKILL.md):Codified customs and trade compliance expertise — HS/HTS tariff classification with GRI rules, commercial invoices and entry documentation, Incoterms 2020, FTA qualification and duty optimization (USM
+- [dart-flutter-patterns](skills/dart-flutter-patterns/SKILL.md):Production-ready Dart and Flutter patterns covering null safety, immutable state with Freezed, async composition, widget architecture, state management (BLoC, Riverpod, Provider), GoRouter navigation 
+- [dashboard-builder](skills/dashboard-builder/SKILL.md):Build monitoring dashboards that answer real operator questions for Grafana, SigNoz, and similar platforms.
+- [data-scraper-agent](skills/data-scraper-agent/SKILL.md):Build a fully automated AI-powered data collection agent for any public source — job boards, prices, news, GitHub, sports, anything.
+- [data-throughput-accelerator](skills/data-throughput-accelerator/SKILL.md):Diagnose and accelerate large data movement — ingestion, backfill, export, ETL, warehouse loading, manifest catch-up, and table synchronization — by isolating the true bottleneck, benchmarking variant
+- [database-migrations](skills/database-migrations/SKILL.md):Safe, reversible database migration patterns: forward-only production changes, expand-contract zero-downtime renames, concurrent indexes, batched backfills, and per-tool workflows for PostgreSQL, Pris
+- [deep-research](skills/deep-research/SKILL.md):Produce cited research reports from multiple web sources using firecrawl and exa MCP tools — plan sub-questions, search and deep-read sources, then synthesize findings with inline citations and confid
+- [deepseek-harness-setup](skills/deepseek-harness-setup/SKILL.md):Install and operate Everything Claude Code (ECC) on the DeepSeek Harness (DSH): native skill roots (~/.dsh/skills, .agents/skills), the @deepseek-ai/dsh-hooks-claude-code bridge for command hooks, bar
+- [defi-amm-security](skills/defi-amm-security/SKILL.md):Security checklist for Solidity AMM contracts, liquidity pools, and swap flows.
+- [delivery-gate](skills/delivery-gate/SKILL.md):Stop hook that blocks Claude from finishing until quality checks pass.
+- [deployment-patterns](skills/deployment-patterns/SKILL.md):Deployment workflows, CI/CD pipeline patterns, Docker containerization, health checks, rollback strategies, and production readiness checklists for web applications.
+- [design-system](skills/design-system/SKILL.md):Generate a design system from an existing codebase or audit one for visual consistency: extract tokens (colors, typography, spacing, shadows) into design-tokens.json and CSS custom properties with DES
+- [dev-team](skills/dev-team/SKILL.md):Simulate a collaborative dev team session where multiple role-based personas (PM, Architect, Developer, QA) respond to the same problem together in one session.
+- [devfleet](skills/devfleet/SKILL.md):Orchestrate multi-agent coding tasks via Claude DevFleet — plan projects, dispatch parallel agents in isolated worktrees, monitor progress, and read structured reports.
+- [django-celery](skills/django-celery/SKILL.md):Django + Celery async task patterns — configuration, task design, beat scheduling, retries, canvas workflows, monitoring, and testing.
+- [django-patterns](skills/django-patterns/SKILL.md):Django architecture patterns, REST API design with DRF, ORM best practices, caching, signals, middleware, and production-grade Django apps.
+- [django-security](skills/django-security/SKILL.md):Django security best practices, authentication, authorization, CSRF protection, SQL injection prevention, XSS prevention, and secure deployment configurations.
+- [django-tdd](skills/django-tdd/SKILL.md):Django testing strategies with pytest-django, TDD methodology, factory_boy, mocking, coverage, and testing Django REST Framework APIs.
+- [django-verification](skills/django-verification/SKILL.md):Run the full Django verification loop — environment check, mypy/ruff/black linting, migration safety, pytest with coverage targets, pip-audit and bandit security scans, settings and logging review, an
+- [dmux-workflows](skills/dmux-workflows/SKILL.md):Multi-agent orchestration using dmux (tmux pane manager for AI agents).
+- [docker-patterns](skills/docker-patterns/SKILL.md):Docker and Docker Compose patterns for local development, hardened CLI installer harnesses, container security, networking, volumes, and multi-service orchestration.
+- [docs-governance](skills/docs-governance/SKILL.md):Route broad documentation-governance requests to existing ECC skills and run an opt-in, read-only audit of mapped documentation roles, links, ADR indexes, and evidence references.
+- [documentation-lookup](skills/documentation-lookup/SKILL.md):Use up-to-date library and framework docs via Context7 MCP instead of training data.
+- [dotnet-patterns](skills/dotnet-patterns/SKILL.md):Idiomatic C# and .NET patterns, conventions, dependency injection, async/await, and best practices for building robust, maintainable .NET applications.
+- [dynamic-workflow-mode](skills/dynamic-workflow-mode/SKILL.md):Design task-local harnesses, eval gates, and reusable skill extraction for Claude dynamic workflow mode and other adaptive agent harnesses.
+- [e2e-testing](skills/e2e-testing/SKILL.md):Playwright E2E testing patterns, Page Object Model, configuration, CI/CD integration, artifact management, and flaky test strategies.
+- [ecc-contribution-review](skills/ecc-contribution-review/SKILL.md):Prepare an ECC skill contribution for review by organizing repository, install-surface, cross-harness, validation, security, and commit observations into a local proposal.
+- [ecc-guide](skills/ecc-guide/SKILL.md):Answer questions about ECC by reading the live repo surface — agents, skills, commands, hooks, rules, install profiles, and docs — instead of memory.
+- [ecc-recipes](skills/ecc-recipes/SKILL.md):Map a described workflow to the right ECC command group with run-order and stop condition, or browse all command-group recipe families read live from the commands directory.
+- [ecc-tools-cost-audit](skills/ecc-tools-cost-audit/SKILL.md):Evidence-first ECC Tools burn and billing audit workflow.
+- [email-ops](skills/email-ops/SKILL.md):Evidence-first mailbox triage, drafting, send verification, and sent-mail-safe follow-up workflow for ECC.
+- [energy-procurement](skills/energy-procurement/SKILL.md):Procure electricity and natural gas for commercial and industrial facilities: tariff and rate-schedule optimization, demand-charge mitigation, supplier RFPs, fixed/index/block-and-index hedging, renew
+- [enterprise-agent-ops](skills/enterprise-agent-ops/SKILL.md):Operational controls for long-lived or cloud-hosted agent systems — runtime lifecycle (start, pause, stop, restart), observability (logs, metrics, traces), least-privilege safety scopes and kill switc
+- [error-handling](skills/error-handling/SKILL.md):Patterns for robust error handling across TypeScript, Python, and Go.
+- [esign-field-placement](skills/esign-field-placement/SKILL.md):Deterministic method for placing signature, date, and text fields in a web e-signature composer through a browser automation session, using a fixed signature page, numeric Location panel coordinates i
+- [eval-harness](skills/eval-harness/SKILL.md):Eval-driven development (EDD) framework for AI coding sessions — define capability and regression evals before coding, grade with code-based, model-based, rule, or human graders, and track pass@k and 
+- [evm-token-decimals](skills/evm-token-decimals/SKILL.md):Prevent silent decimal mismatch bugs across EVM chains.
+- [exa-search](skills/exa-search/SKILL.md):Neural search via Exa MCP for web, code, and company research.
+- [fal-ai-media](skills/fal-ai-media/SKILL.md):Unified media generation via fal.ai MCP — image, video, and audio.
+- [fastapi-patterns](skills/fastapi-patterns/SKILL.md):FastAPI best practices covering project structure, Pydantic v2 schemas, dependency injection, async handlers, authentication, authorization, transactional service layers, and testing with httpx and py
+- [finance-billing-ops](skills/finance-billing-ops/SKILL.md):Evidence-first revenue, pricing, refunds, team-billing, and billing-model truth workflow for ECC.
+- [flox-environments](skills/flox-environments/SKILL.md):Create reproducible, cross-platform (macOS/Linux) development environments with Flox, a declarative Nix-based environment manager.
+- [flutter-dart-code-review](skills/flutter-dart-code-review/SKILL.md):Library-agnostic Flutter/Dart code review checklist covering widget best practices, state management patterns (BLoC, Riverpod, Provider, GetX, MobX, Signals), Dart idioms, performance, accessibility, 
+- [foundation-models-on-device](skills/foundation-models-on-device/SKILL.md):Apple FoundationModels framework for on-device LLM — text generation, guided generation with @Generable, tool calling, and snapshot streaming in iOS 26+.
+- [frontend-a11y](skills/frontend-a11y/SKILL.md):Accessibility patterns for React and Next.js — semantic HTML, ARIA attributes, form labeling, keyboard navigation, focus management, and screen reader support.
+- [frontend-design-direction](skills/frontend-design-direction/SKILL.md):Set an ECC-specific frontend design direction for production UI work.
+- [frontend-patterns](skills/frontend-patterns/SKILL.md):Frontend development patterns for React, Next.js, state management, performance optimization, and UI best practices.
+- [frontend-slides](skills/frontend-slides/SKILL.md):Create stunning, animation-rich HTML presentations from scratch or by converting PowerPoint files.
+- [fsharp-testing](skills/fsharp-testing/SKILL.md):F# testing patterns with xUnit, FsUnit, Unquote, FsCheck property-based testing, integration tests, and test organization best practices.
+- [gan-style-harness](skills/gan-style-harness/SKILL.md):GAN-inspired Generator-Evaluator agent harness for building high-quality applications autonomously.
+- [gateguard](skills/gateguard/SKILL.md):PreToolUse fact-forcing gate that denies the first Edit/Write/Bash (including MultiEdit and NotebookEdit) attempt until the agent presents concrete facts (importers, data schemas, verbatim user instru
+- [generating-python-installer](skills/generating-python-installer/SKILL.md):Commercial-grade Python installer expert for Windows: Nuitka extreme compilation, dist slimming, DLL footprint analysis, and Inno Setup packaging to ship the smallest, fastest installers.
+- [git-workflow](skills/git-workflow/SKILL.md):Git workflow patterns including branching strategies, commit conventions, keeping history clean and readable, tidying local commits before merging, merge vs rebase, conflict resolution, and collaborat
+- [github-ops](skills/github-ops/SKILL.md):GitHub repository operations, automation, and management.
+- [godot-patterns](skills/godot-patterns/SKILL.md):Idiomatic Godot 4 GDScript patterns - static typing, scene and node design, signals, resources, autoloads, input, and lifecycle safety.
+- [godot-testing](skills/godot-testing/SKILL.md):Testing Godot 4 GDScript projects - a zero-dependency headless check scene, gdUnit4 and GUT suites, scene-runner tests, signal assertions, and CI commands.
+- [golang-patterns](skills/golang-patterns/SKILL.md):Idiomatic Go patterns, best practices, and conventions for building robust, efficient, and maintainable Go applications.
+- [golang-testing](skills/golang-testing/SKILL.md):Go testing patterns including table-driven tests, subtests, benchmarks, fuzzing, and test coverage.
+- [google-workspace-ops](skills/google-workspace-ops/SKILL.md):Operate across Google Drive, Docs, Sheets, and Slides as one workflow surface for plans, trackers, decks, and shared documents.
+- [growth-log](skills/growth-log/SKILL.md):Write growth log entries that extract reusable patterns from completed work — root cause, transferable rule, and a recognizable signal — instead of diary-style event narration, with a 4-8 sentence tem
+- [healthcare-cdss-patterns](skills/healthcare-cdss-patterns/SKILL.md):Clinical Decision Support System (CDSS) development patterns.
+- [healthcare-emr-patterns](skills/healthcare-emr-patterns/SKILL.md):EMR/EHR development patterns for healthcare applications.
+- [healthcare-eval-harness](skills/healthcare-eval-harness/SKILL.md):Patient safety evaluation harness for healthcare application deployments.
+- [healthcare-phi-compliance](skills/healthcare-phi-compliance/SKILL.md):Protected Health Information (PHI) and PII compliance patterns for healthcare applications: data classification, row-level access control, tamper-proof audit trails, schema tagging, and common leak ve
+- [hermes-imports](skills/hermes-imports/SKILL.md):Convert local Hermes operator workflows into sanitized ECC skills and release-pack artifacts.
+- [hexagonal-architecture](skills/hexagonal-architecture/SKILL.md):Design, implement, and refactor Ports & Adapters systems with clear domain boundaries, dependency inversion, and testable use-case orchestration across TypeScript, Java, Kotlin, and Go services.
+- [hipaa-compliance](skills/hipaa-compliance/SKILL.md):HIPAA-specific entrypoint for healthcare privacy and security work.
+- [homelab-network-readiness](skills/homelab-network-readiness/SKILL.md):Readiness checklist for homelab VLAN segmentation, local DNS filtering (Pi-hole, AdGuard Home), and WireGuard-style remote access.
+- [homelab-network-setup](skills/homelab-network-setup/SKILL.md):Practical home and homelab network planning for gateways, switches, access points, IP ranges, DHCP reservations, DNS, cabling, and common beginner mistakes.
+- [homelab-pihole-dns](skills/homelab-pihole-dns/SKILL.md):Pi-hole installation, blocklist management, DNS-over-HTTPS setup, DHCP integration, local DNS records, and troubleshooting broken DNS resolution on a home network.
+- [homelab-vlan-segmentation](skills/homelab-vlan-segmentation/SKILL.md):Segmenting home networks into VLANs for IoT, guest, trusted, and server traffic using UniFi, pfSense/OPNsense, and MikroTik — including switch trunk config, firewall rules, and wireless SSID mapping.
+- [homelab-wireguard-vpn](skills/homelab-wireguard-vpn/SKILL.md):WireGuard VPN server setup, peer configuration, key generation, split tunneling vs full tunnel routing, and remote access to a home network from mobile and laptop clients.
+- [hookify-rules](skills/hookify-rules/SKILL.md):Create and configure hookify rules — markdown files with YAML frontmatter that match bash, file, prompt, or stop events by regex or conditions and show warn/block messages to the agent.
+- [i18n-sync](skills/i18n-sync/SKILL.md):Translate and synchronize application JSON locale files using source-key usage, project terminology, and focused validation.
+- [inherit-legacy-style](skills/inherit-legacy-style/SKILL.md):Prevent AI style drift on legacy projects by scanning the codebase for implicit conventions, resolving conflicts with the operator one at a time, and writing an enforceable .ai-style-rules.md (Golden 
+- [intent-driven-development](skills/intent-driven-development/SKILL.md):Turn ambiguous or high-impact product and engineering changes into scoped, verifiable acceptance criteria before or alongside implementation.
+- [inventory-demand-planning](skills/inventory-demand-planning/SKILL.md):Codified demand planning expertise for multi-location retailers: demand forecasting method selection, ABC/XYZ segmentation, safety stock and reorder-point optimization, promotional lift and post-promo
+- [investor-materials](skills/investor-materials/SKILL.md):Create and update pitch decks, one-pagers, investor memos, accelerator applications, financial models, and fundraising materials.
+- [investor-outreach](skills/investor-outreach/SKILL.md):Draft cold emails, warm intro blurbs, follow-ups, update emails, and investor communications for fundraising.
+- [ios-icon-gen](skills/ios-icon-gen/SKILL.md):Generate iOS app icons as PNG imagesets for Xcode asset catalogs from SF Symbols (5000+ Apple-native) or Iconify API (275k+ open source icons from 200+ collections).
+- [issue-review](skills/issue-review/SKILL.md):Review a GitHub issue the way /code-review reviews a PR.
+- [iterative-retrieval](skills/iterative-retrieval/SKILL.md):Pattern for progressively refining context retrieval to solve the subagent context problem.
+- [ito-baskets](skills/ito-baskets/SKILL.md):Read-only Itô basket and prediction-market data skill.
+- [ito-compute](skills/ito-compute/SKILL.md):Query live GPU inventory, submit an authenticated Itô fixed-rate RFQ, inspect RFQ or procurement status, revoke device credentials, and run explicitly gated node qualification through the separately i
+- [ito-inference](skills/ito-inference/SKILL.md):Inspect the availability of model serving on a completed Itô compute booking and, when the canonical backend becomes available, hand off an explicitly confirmed serving manifest.
+- [ito-training](skills/ito-training/SKILL.md):Inspect the availability of ML training on a completed Itô compute booking and, when the canonical backend becomes available, hand off an explicitly confirmed training manifest.
+- [java-coding-standards](skills/java-coding-standards/SKILL.md):Java coding standards for Spring Boot and Quarkus services: naming, immutability, Optional usage, streams, exceptions, generics, CDI, reactive patterns, and project layout.
+- [jira-integration](skills/jira-integration/SKILL.md):Retrieves Jira tickets, analyzes requirements, updates ticket status, adds comments, or transitions issues via MCP or direct REST API patterns.
+- [jpa-patterns](skills/jpa-patterns/SKILL.md):JPA/Hibernate patterns for entity design, relationships, query optimization, transactions, auditing, indexing, pagination, and pooling in Spring Boot.
+- [knowledge-ops](skills/knowledge-ops/SKILL.md):Knowledge base management, ingestion, sync, and retrieval across multiple storage layers (local files, MCP memory, vector stores, Git repos).
+- [kotlin-coroutines-flows](skills/kotlin-coroutines-flows/SKILL.md):Kotlin Coroutines and Flow patterns for Android and KMP — structured concurrency, Flow operators, StateFlow, error handling, and testing.
+- [kotlin-exposed-patterns](skills/kotlin-exposed-patterns/SKILL.md):JetBrains Exposed ORM patterns including DSL queries, DAO pattern, transactions, HikariCP connection pooling, Flyway migrations, and repository pattern.
+- [kotlin-ktor-patterns](skills/kotlin-ktor-patterns/SKILL.md):Ktor server patterns including routing DSL, plugins, authentication, Koin DI, kotlinx.serialization, WebSockets, and testApplication testing.
+- [kotlin-patterns](skills/kotlin-patterns/SKILL.md):Idiomatic Kotlin patterns, best practices, and conventions for building robust, efficient, and maintainable Kotlin applications with coroutines, null safety, and DSL builders.
+- [kotlin-testing](skills/kotlin-testing/SKILL.md):Kotlin testing patterns with Kotest, MockK, coroutine testing, property-based testing, and Kover coverage.
+- [kubernetes-patterns](skills/kubernetes-patterns/SKILL.md):Kubernetes workload patterns, resource management, RBAC, probes, autoscaling, ConfigMap/Secret handling, and kubectl debugging for production-grade deployments.
+- [laravel-patterns](skills/laravel-patterns/SKILL.md):Laravel architecture patterns, routing/controllers, Eloquent ORM, service layers, queues, events, caching, and API resources for production apps.
+- [laravel-plugin-discovery](skills/laravel-plugin-discovery/SKILL.md):Discover and evaluate Laravel packages via LaraPlugins.io MCP.
+- [laravel-security](skills/laravel-security/SKILL.md):Laravel security best practices — authentication, authorization, Eloquent safety, CSRF, XSS prevention, API security, and secure deployment configurations.
+- [laravel-tdd](skills/laravel-tdd/SKILL.md):Laravel testing strategies with PHPUnit, Pest, model factories, HTTP tests, Sanctum authentication testing, mocking, and coverage.
+- [laravel-verification](skills/laravel-verification/SKILL.md):Verification loop for Laravel projects: env checks, linting, static analysis, tests with coverage, security scans, and deployment readiness.
+- [latency-critical-systems](skills/latency-critical-systems/SKILL.md):Optimize and verify latency-sensitive systems — realtime dashboards, market data feeds, streaming agents, execution gateways, queues, and caches — by tracking p50/p95/p99 latency, freshness age, and q
+- [lead-intelligence](skills/lead-intelligence/SKILL.md):AI-native lead intelligence and outreach pipeline.
+- [leanrea](skills/leanrea/SKILL.md):Reverse engineers shipped software with bounded local CLI inspection.
+- [liquid-glass-design](skills/liquid-glass-design/SKILL.md):iOS 26 Liquid Glass design system — dynamic glass material with blur, reflection, and interactive morphing for SwiftUI, UIKit, and WidgetKit.
+- [living-docs-governance](skills/living-docs-governance/SKILL.md):Keep a long-lived project's documentation from rotting by assigning existing project docs clear constitution, map, status, and history roles, then wiring the active agent harness to those canonical so
+- [llm-trading-agent-security](skills/llm-trading-agent-security/SKILL.md):Security patterns for autonomous trading agents with wallet or transaction authority.
+- [logistics-exception-management](skills/logistics-exception-management/SKILL.md):Codified freight-exception handling expertise for shipment delays, damages, losses, shortages, and carrier disputes, with escalation protocols, carrier-specific behaviors by mode, claims procedures, a
+- [loop-design-check](skills/loop-design-check/SKILL.md):Design a goal-oriented agent loop or review one for failure modes: spinning, Goodhart-gaming the verifier, or running a wrong answer to completion.
+- [mailtrap-email-integration](skills/mailtrap-email-integration/SKILL.md):Guides agents through integrating transactional email sending via Mailtrap's Email API, including sandbox testing, domain verification, and API authentication.
+- [make-interfaces-feel-better](skills/make-interfaces-feel-better/SKILL.md):Apply concrete design-engineering details that make interfaces feel polished.
+- [manim-video](skills/manim-video/SKILL.md):Build reusable Manim explainers for technical concepts, graphs, system diagrams, and product walkthroughs, then hand off to the wider ECC video stack if needed.
+- [market-research](skills/market-research/SKILL.md):Conduct market research, competitive analysis, investor due diligence, and industry intelligence with source attribution and decision-oriented summaries.
+- [marketing-campaign](skills/marketing-campaign/SKILL.md):End-to-end marketing campaign planning and execution.
+- [master-agreement-generator](skills/master-agreement-generator/SKILL.md):Generate review drafts of counterparty master agreements from one template plus a JSON spec, with role-selected clauses and a Schedule A workflow limited to the executed agreement's notice authority.
+- [mcp-dependency-review](skills/mcp-dependency-review/SKILL.md):Statically review MCP configuration for mutable package references before approval or CI, without executing discovered MCP servers.
+- [mcp-server-patterns](skills/mcp-server-patterns/SKILL.md):Build MCP servers with Node/TypeScript SDK — tools, resources, prompts, Zod validation, stdio vs Streamable HTTP.
+- [messages-ops](skills/messages-ops/SKILL.md):Evidence-first live messaging workflow for ECC.
+- [ml-adoption-playbook](skills/ml-adoption-playbook/SKILL.md):End-to-end methodology for AI agents and software engineers to add machine learning algorithms to existing non-ML codebases.
+- [mle-workflow](skills/mle-workflow/SKILL.md):Production machine-learning engineering workflow for data contracts, reproducible training, model evaluation, deployment, monitoring, and rollback.
+- [module-governance](skills/module-governance/SKILL.md):Establish or maintain a business module's local agent instructions, domain-context links, and interface ownership when implementing a new module or changing its responsibilities.
+- [module-regression](skills/module-regression/SKILL.md):Govern cross-module regression in large repositories with a REGRESSION.md ledger that records each module's downstream consumers and executable acceptance command.
+- [motion-advanced](skills/motion-advanced/SKILL.md):Advanced motion patterns for React / Next.js — drag & drop, gestures, text animations, SVG path drawing, custom hooks, imperative sequences (useAnimate), loaders, and the full API decision tree.
+- [motion-foundations](skills/motion-foundations/SKILL.md):Motion tokens, spring presets, performance rules, device adaptation, accessibility enforcement, and SSR safety for React / Next.js using motion/react.
+- [motion-patterns](skills/motion-patterns/SKILL.md):Production-ready animation patterns for React / Next.js — button, modal, toast, stagger, page transitions, exit animations, scroll, and layout — built on motion-foundations tokens and springs.
+- [mybatis-patterns](skills/mybatis-patterns/SKILL.md):MyBatis and MyBatis-Spring patterns for mapper design, XML and annotation SQL, result mapping, dynamic SQL safety, transactions, batching, pagination, and query performance.
+- [mysql-patterns](skills/mysql-patterns/SKILL.md):MySQL and MariaDB schema, query, indexing, transaction, replication, and connection-pool patterns for production backends.
+- [nanoclaw-repl](skills/nanoclaw-repl/SKILL.md):Operate and extend NanoClaw, ECC's zero-dependency session-aware REPL, with persistent markdown-backed sessions and slash commands for model switching, skill loading, session branching, cross-session 
+- [nasiko-control-plane](skills/nasiko-control-plane/SKILL.md):Manage the experimental Nasiko CLI lifecycle through ECC — read-only status checks, consent-gated install of the pinned qualified version with dry-run preview, and ownership-checked uninstall, under e
+- [nestjs-patterns](skills/nestjs-patterns/SKILL.md):NestJS architecture patterns for modules, controllers, providers, DTO validation, guards, interceptors, config, and production-grade TypeScript backends.
+- [netmiko-ssh-automation](skills/netmiko-ssh-automation/SKILL.md):Safe Python Netmiko patterns for read-only collection, bounded batch SSH, TextFSM parsing, guarded config changes, timeouts, and network automation error handling.
+- [network-bgp-diagnostics](skills/network-bgp-diagnostics/SKILL.md):Diagnostics-only BGP troubleshooting patterns for neighbor state, route exchange, prefix policy, AS path inspection, and safe evidence collection.
+- [network-config-validation](skills/network-config-validation/SKILL.md):Pre-deployment checks for router and switch configuration, including dangerous commands, duplicate addresses, subnet overlaps, stale references, management-plane risk, and IOS-style security hygiene.
+- [network-interface-health](skills/network-interface-health/SKILL.md):Diagnose interface errors, drops, CRCs, duplex mismatches, flapping, speed negotiation issues, and counter trends on routers, switches, and Linux hosts.
+- [nextjs-turbopack](skills/nextjs-turbopack/SKILL.md):Next.js 16+ and Turbopack guidance — incremental Rust bundling, file-system caching, faster dev startup and HMR, Turbopack vs webpack tradeoffs, and the middleware.ts to proxy.ts filename change.
+- [nodejs-keccak256](skills/nodejs-keccak256/SKILL.md):Prevent Ethereum hashing bugs in JavaScript and TypeScript.
+- [nutrient-document-processing](skills/nutrient-document-processing/SKILL.md):Process, convert, OCR, extract, redact, sign, and fill documents using the Nutrient DWS API.
+- [nuxt4-patterns](skills/nuxt4-patterns/SKILL.md):Nuxt 4 app patterns for hydration safety, performance, route rules, lazy loading, and SSR-safe data fetching with useFetch and useAsyncData.
+- [openclaw-persona-forge](skills/openclaw-persona-forge/SKILL.md):为 OpenClaw AI Agent 锻造完整的龙虾灵魂方案。根据用户偏好或随机抽卡， 输出身份定位、灵魂描述(SOUL.md)、角色化底线规则、名字和头像生图提示词。 如当前环境提供已审核的生图 skill，可自动生成统一风格头像图片。 当用户需要创建、设计或定制 OpenClaw 龙虾灵魂时使用。 不适用于：微调已有 SOUL.md、非 OpenClaw 平台的角色设计、纯工具型无性格 Ag
+- [opensource-pipeline](skills/opensource-pipeline/SKILL.md):Open-source pipeline: fork, sanitize, and package private projects for safe public release.
+- [operator-approval-loop](skills/operator-approval-loop/SKILL.md):Operator approval contract with internal filing notices for agent-drafted outbound messages, hashed drafts, epoch-keyed decisions, durable delivery claims and receipts, and a pre-draft baseline gate.
+- [orch-add-feature](skills/orch-add-feature/SKILL.md):Orchestrate building a brand-new feature end to end — research, plan, TDD implementation, review, and gated commit — by delegating each phase to the matching ECC agent.
+- [orch-build-mvp](skills/orch-build-mvp/SKILL.md):Orchestrate bootstrapping a working MVP from a design or spec document — ingest the SDD/PRD, plan thin vertical slices, scaffold the first end-to-end slice, then drive a generator-evaluator build loop
+- [orch-change-feature](skills/orch-change-feature/SKILL.md):Orchestrate altering an existing, working feature to new desired behavior — update its tests to the new spec, change the implementation to match, review, and gated commit.
+- [orch-fix-defect](skills/orch-fix-defect/SKILL.md):Orchestrate fixing a bug — reproduce it as a failing regression test, fix to green, review, and gated commit — by delegating each phase to the matching ECC agent.
+- [orch-pipeline](skills/orch-pipeline/SKILL.md):Shared orchestration engine behind the orch-* skill family — the gated Research-Plan-TDD-Review-Commit pipeline, size classifier, agent and command map, and two human gates (plan approval, commit conf
+- [orch-refine-code](skills/orch-refine-code/SKILL.md):Orchestrate a behavior-preserving refactor — confirm tests are green, restructure without changing behavior, keep tests green, review, and gated commit.
+- [osint-investigation](skills/osint-investigation/SKILL.md):Sparse-clue OSINT investigation methodology for extracting overlooked leads, connecting fragmented evidence, and testing explanations across sources.
+- [parallel-execution-optimizer](skills/parallel-execution-optimizer/SKILL.md):Speed up a task by turning it into a dependency graph of parallel lanes with a lane matrix, batched reads and checks, write surfaces isolated by file, worktree, branch, or service, and a final verific
+- [perl-patterns](skills/perl-patterns/SKILL.md):Modern Perl 5.36+ idioms, best practices, and conventions for building robust, maintainable Perl applications.
+- [perl-security](skills/perl-security/SKILL.md):Comprehensive Perl security covering taint mode, input validation, safe process execution, DBI parameterized queries, web security (XSS/SQLi/CSRF), and perlcritic security policies.
+- [perl-testing](skills/perl-testing/SKILL.md):Perl testing patterns using Test2::V0, Test::More, prove runner, mocking, coverage with Devel::Cover, and TDD methodology.
+- [plan-canvas](skills/plan-canvas/SKILL.md):Open plans and HTML artifacts in a local browser canvas where the human annotates elements, chats, and approves or requests changes without leaving the page.
+- [plan-orchestrate](skills/plan-orchestrate/SKILL.md):Read a plan document, decompose it into steps, classify each step, and emit the ready-to-paste ECC slash command for that step, carrying the step identifier and scope in the command's own documented a
+- [plankton-code-quality](skills/plankton-code-quality/SKILL.md):Write-time code quality enforcement using Plankton — auto-formatting, linting, and Claude-powered fixes on every file edit via hooks.
+- [platform-factory](skills/platform-factory/SKILL.md):Build deterministic OCI images, SBOM/provenance evidence and hardened container or microVM runs from a compiled executable with the Platform Factory (pf) CLI, and keep its freeze lock in sync with a c
+- [postgres-patterns](skills/postgres-patterns/SKILL.md):PostgreSQL database patterns for query optimization, schema design, indexing, and security.
+- [prediction-market-oracle-research](skills/prediction-market-oracle-research/SKILL.md):Research prediction markets as data sources or oracle signals for products, agents, dashboards, and corporate decision intelligence.
+- [prediction-market-risk-review](skills/prediction-market-risk-review/SKILL.md):Review prediction-market, basket, oracle, and trading-agent workflows for compliance, safety, data-quality, privacy, and execution risk.
+- [prisma-patterns](skills/prisma-patterns/SKILL.md):Prisma ORM patterns for TypeScript backends — schema design, query optimization, transactions, pagination, and critical traps like updateMany returning count not records, $transaction timeouts, migrat
+- [product-capability](skills/product-capability/SKILL.md):Translate PRD intent, roadmap asks, or product discussions into an implementation-ready capability plan that exposes constraints, invariants, interfaces, and unresolved decisions before multi-service 
+- [product-lens](skills/product-lens/SKILL.md):Validate the why before building through four product diagnostics — a YC-style product diagnostic that produces PRODUCT-BRIEF.md with a go/no-go recommendation, a founder review scoring product-market
+- [production-audit](skills/production-audit/SKILL.md):Local-evidence production readiness audit for shipped apps, pre-launch reviews, post-merge checks, and "what breaks in prod?" questions without sending repo data to an external audit service.
+- [production-scheduling](skills/production-scheduling/SKILL.md):Codified expertise for production scheduling, job sequencing, line balancing, changeover optimization, and bottleneck resolution in discrete and batch manufacturing.
+- [project-flow-ops](skills/project-flow-ops/SKILL.md):Operate execution flow across GitHub and Linear by triaging issues and pull requests, linking active work, and keeping GitHub public-facing while Linear remains the internal execution layer.
+- [prompt-caching-strategy](skills/prompt-caching-strategy/SKILL.md):Optimize LLM prompt caching hit rate to reduce API costs and improve latency.
+- [prompt-optimizer](skills/prompt-optimizer/SKILL.md):Analyze draft prompts, detect intent and missing context, match ECC commands, skills, and agents, and output a ready-to-paste optimized prompt with diagnosis and rationale — advisory only, never execu
+- [python-patterns](skills/python-patterns/SKILL.md):Pythonic idioms, PEP 8 standards, type hints, and best practices for building robust, efficient, and maintainable Python applications.
+- [python-testing](skills/python-testing/SKILL.md):Python testing strategies using pytest, TDD methodology, fixtures, mocking, parametrization, and coverage requirements.
+- [pytorch-patterns](skills/pytorch-patterns/SKILL.md):PyTorch deep learning patterns and best practices for building robust, efficient, and reproducible training pipelines, model architectures, and data loading.
+- [quality-nonconformance](skills/quality-nonconformance/SKILL.md):Quality control and non-conformance management for regulated manufacturing (FDA 21 CFR 820, IATF 16949, AS9100): NCR lifecycle and disposition, 5-Why/Ishikawa/fault-tree/8D root cause analysis, CAPA s
+- [quarkus-patterns](skills/quarkus-patterns/SKILL.md):Quarkus 3.x LTS architecture patterns with Camel for messaging, RESTful API design, CDI services, data access with Panache, and async processing.
+- [quarkus-security](skills/quarkus-security/SKILL.md):Quarkus security implementation patterns: JWT and OIDC authentication, @RolesAllowed RBAC and SecurityIdentity checks, Bean Validation and custom validators, parameterized Panache queries, BCrypt pass
+- [quarkus-tdd](skills/quarkus-tdd/SKILL.md):Test-driven development for Quarkus 3.x LTS using JUnit 5, Mockito, REST Assured, Camel testing, and JaCoCo.
+- [quarkus-verification](skills/quarkus-verification/SKILL.md):Verification loop for Quarkus projects: build, static analysis (Checkstyle, PMD, SpotBugs), tests with JaCoCo coverage, OWASP dependency and container security scans, GraalVM native compilation, healt
+- [rails-patterns](skills/rails-patterns/SKILL.md):Ruby on Rails framework patterns for Rails 7.1+ and 8.x apps.
+- [rails-security](skills/rails-security/SKILL.md):Ruby on Rails security practices for Rails 7.1+ and 8.x apps.
+- [ralphinho-rfc-pipeline](skills/ralphinho-rfc-pipeline/SKILL.md):Split an RFC into a multi-agent execution DAG — decompose into work units with dependencies and acceptance tests, run research, plan, implement, test, and review per unit, then merge through a queue w
+- [react-native-patterns](skills/react-native-patterns/SKILL.md):React Native and Expo app patterns — Expo Router navigation, state separation (server/client/route/form), TanStack Query data fetching with Zod, performant lists, NativeWind/StyleSheet styling, native
+- [react-patterns](skills/react-patterns/SKILL.md):React 18/19 patterns including hooks discipline, server/client component boundaries, Suspense + error boundaries, form actions, data fetching, state management decision trees, and accessibility-first 
+- [react-performance](skills/react-performance/SKILL.md):React and Next.js performance optimization patterns adapted from Vercel Engineering's React Best Practices (https://github.com/vercel-labs/agent-skills).
+- [react-testing](skills/react-testing/SKILL.md):React component testing with React Testing Library, Vitest/Jest, MSW for network mocking, accessibility assertions with axe, and the decision boundary between component tests and Playwright/Cypress en
+- [recsys-pipeline-architect](skills/recsys-pipeline-architect/SKILL.md):Design composable recommendation, ranking, and feed pipelines using the six-stage Source→Hydrator→Filter→Scorer→Selector→SideEffect framework popularized by xAI's open-sourced For You algorithm.
+- [recursive-decision-ledger](skills/recursive-decision-ledger/SKILL.md):Run repeated rollouts ("Prime Gauss" style recursive prompting) while keeping an append-only decision ledger of trials, marks, coherence checks, and promotion gates, so recursive confidence never auto
+- [redis-patterns](skills/redis-patterns/SKILL.md):Redis data structure patterns, caching strategies, distributed locks, rate limiting, pub/sub, and connection management for production applications.
+- [regex-vs-llm-structured-text](skills/regex-vs-llm-structured-text/SKILL.md):Decision framework for parsing structured text (quizzes, forms, invoices, receipts, tables) with a hybrid regex-first pipeline — regex extraction handles 95%+ cheaply, a confidence scorer flags low-co
+- [remotion-video-creation](skills/remotion-video-creation/SKILL.md):Best practices for Remotion - Video creation in React.
+- [repo-scan](skills/repo-scan/SKILL.md):Bootstrap pointer that installs the external repo-scan skill from a pinned, reviewable commit.
+- [research-ops](skills/research-ops/SKILL.md):Evidence-first current-state research workflow for ECC.
+- [returns-reverse-logistics](skills/returns-reverse-logistics/SKILL.md):Codified expertise for returns authorization, receipt and inspection, disposition decisions, refund processing, fraud detection, and warranty claims management.
+- [roundhouse-x402](skills/roundhouse-x402/SKILL.md):Discover x402-paid services and ERC-8004 agent identity via Roundhouse (open catalog, paid SQL, MCP server, rh-x402 CLI), and optionally settle through Roundhouse's Base mainnet facilitator.
+- [rules-distill](skills/rules-distill/SKILL.md):Scan skills to extract cross-cutting principles and distill them into rules — append, revise, or create new rule files.
+- [rust-patterns](skills/rust-patterns/SKILL.md):Idiomatic Rust patterns, ownership, error handling, traits, concurrency, and best practices for building safe, performant applications.
+- [rust-testing](skills/rust-testing/SKILL.md):Rust testing patterns including unit tests, integration tests, async testing, property-based testing, mocking, and coverage.
+- [safety-guard](skills/safety-guard/SKILL.md):Guard against destructive operations with three modes: Careful intercepts dangerous commands (rm -rf, git push --force, DROP TABLE) for confirmation, Freeze locks writes to one directory, and Guard co
+- [santa-method](skills/santa-method/SKILL.md):Multi-agent adversarial verification: two independent reviewers with the same rubric must both pass before output ships, with a fix-and-re-review convergence loop and human escalation cap.
+- [scientific-db-openalex-database](skills/scientific-db-openalex-database/SKILL.md):OpenAlex REST API workflows for cross-disciplinary literature search, DOI/PMID lookup, open-access links, citation counts, and reproducible search logs.
+- [scientific-db-pubmed-database](skills/scientific-db-pubmed-database/SKILL.md):Direct PubMed and NCBI E-utilities search workflows for biomedical literature, MeSH queries, PMID lookup, citation retrieval, and API-backed literature monitoring.
+- [scientific-db-uspto-database](skills/scientific-db-uspto-database/SKILL.md):USPTO patent and trademark data workflow for official record lookup, PatentSearch queries, TSDR checks, assignment data, and reproducible IP research logs.
+- [scientific-pkg-gget](skills/scientific-pkg-gget/SKILL.md):gget CLI and Python workflow for quick genomic database queries, sequence lookup, BLAST-style searches, enrichment checks, and reproducible bioinformatics evidence logs.
+- [scientific-thinking-literature-review](skills/scientific-thinking-literature-review/SKILL.md):Systematic literature-review workflow for academic, biomedical, technical, and scientific topics, including search planning, source screening, synthesis, citation checks, and evidence logging.
+- [scientific-thinking-scholar-evaluation](skills/scientific-thinking-scholar-evaluation/SKILL.md):Structured scholarly-work evaluation for papers, proposals, literature reviews, methods sections, evidence quality, citation support, and research-writing feedback.
+- [search-first](skills/search-first/SKILL.md):Research-before-coding workflow: search npm/PyPI, MCP servers, skills, and GitHub for existing tools before writing custom code, then adopt, extend, or build.
+- [security-bounty-hunter](skills/security-bounty-hunter/SKILL.md):Hunt for exploitable, bounty-worthy security issues in repositories.
+- [security-review](skills/security-review/SKILL.md):Security review checklist and patterns for adding authentication, handling user input, managing secrets, creating API endpoints, or implementing payment and sensitive features.
+- [security-scan](skills/security-scan/SKILL.md):Scan your Claude Code configuration (.claude/ directory) for security vulnerabilities, misconfigurations, and injection risks using AgentShield.
+- [seo](skills/seo/SKILL.md):Audit, plan, and implement SEO improvements across technical SEO, on-page optimization, structured data, Core Web Vitals, and content strategy.
+- [short-video-distribution](skills/short-video-distribution/SKILL.md):Ship a finished vertical video to TikTok, YouTube Shorts, and Instagram Reels.
+- [skill-comply](skills/skill-comply/SKILL.md):Visualize whether skills, rules, and agent definitions are actually followed — auto-generates scenarios at 3 prompt strictness levels, runs agents, classifies behavioral sequences, and reports complia
+- [skill-host-compat](skills/skill-host-compat/SKILL.md):Lint ECC skills for Codex/Cursor-safe frontmatter and Claude-only substitutions before a skill PR.
+- [skill-scout](skills/skill-scout/SKILL.md):Search existing local, marketplace, GitHub, and web skill sources before creating a new skill.
+- [skill-stocktake](skills/skill-stocktake/SKILL.md):Use when auditing Claude skills and commands for quality.
+- [social-graph-ranker](skills/social-graph-ranker/SKILL.md):Weighted social-graph ranking for warm intro discovery, bridge scoring, and network gap analysis across X and LinkedIn.
+- [social-publisher](skills/social-publisher/SKILL.md):Agent-driven scheduling and publishing of social media posts across 13 platforms via SocialClaw.
+- [springboot-patterns](skills/springboot-patterns/SKILL.md):Spring Boot architecture patterns, REST API design, layered services, data access, caching, async processing, and logging.
+- [springboot-security](skills/springboot-security/SKILL.md):Spring Security best practices for authn/authz, validation, CSRF, secrets, headers, rate limiting, and dependency security in Java Spring Boot services.
+- [springboot-tdd](skills/springboot-tdd/SKILL.md):Test-driven development for Spring Boot using JUnit 5, Mockito, MockMvc, Testcontainers, and JaCoCo.
+- [springboot-verification](skills/springboot-verification/SKILL.md):Run the full Spring Boot verification loop — Maven or Gradle build, SpotBugs, PMD, and Checkstyle static analysis, unit and Testcontainers integration tests with JaCoCo coverage, OWASP dependency and 
+- [story-lifecycle](skills/story-lifecycle/SKILL.md):Manage a file-based epic → story → sprint development loop without requiring an external project management tool.
+- [strategic-compact](skills/strategic-compact/SKILL.md):Suggests manual context compaction at logical intervals to preserve context through task phases rather than arbitrary auto-compaction.
+- [swift-actor-persistence](skills/swift-actor-persistence/SKILL.md):Thread-safe data persistence in Swift using actors — in-memory cache with file-backed storage, eliminating data races by design.
+- [swift-concurrency-6-2](skills/swift-concurrency-6-2/SKILL.md):Swift 6.2 Approachable Concurrency — single-threaded by default, @concurrent for explicit background offloading, isolated conformances for main actor types.
+- [swift-protocol-di-testing](skills/swift-protocol-di-testing/SKILL.md):Protocol-based dependency injection for testable Swift code — mock file system, network, and external APIs using focused protocols and Swift Testing.
+- [swiftui-patterns](skills/swiftui-patterns/SKILL.md):SwiftUI architecture patterns, state management with @Observable, view composition, navigation, performance optimization, and modern iOS/macOS UI best practices.
+- [taste-application](skills/taste-application/SKILL.md):Generate new video against a distilled style pack and cut it into a finished piece - plan takes from the reference's cut rhythm, generate on fal, grade with the pack's measured LUT, cut at the measure
+- [taste-distillation](skills/taste-distillation/SKILL.md):Measure a set of reference videos into a reusable style pack - colour grade as a 3D LUT, cut rhythm as a shot-length distribution, hero stills, screen-blend overlay plates, and a text spec for a gener
+- [taste](skills/taste/SKILL.md):Creative-direction layer for music videos and short-form edits in the angelcore / cloud-trance / hyperpop family — a named-genre aesthetic vocabulary, mood + color + light system, beat-synced editing 
+- [tasteforge-video](skills/tasteforge-video/SKILL.md):Use for file-driven multimodal image, video, and 3D-asset discovery; taste interviews; distill or apply workflows; style-pack validation; editable EDL/FCPXML export; provenance audits; and offline pla
+- [tdd-workflow](skills/tdd-workflow/SKILL.md):Test-driven development workflow: write a failing test first, watch it fail, implement the smallest change to green, then refactor with 80%+ coverage across unit, integration, and E2E tests.
+- [team-agent-orchestration](skills/team-agent-orchestration/SKILL.md):Run team-based orchestration for agent squads: work items with owners and scope, agent Kanban state, branch isolation, control pane visibility, and merge gates.
+- [team-builder](skills/team-builder/SKILL.md):Interactive picker that discovers available agent personas via the claude agents command and agents/ markdown globs, groups them into domains, has the user select up to five, dispatches them in parall
+- [terminal-opener](skills/terminal-opener/SKILL.md):Open an executable and its argument array in a visible terminal window through a reusable, shell-free launch plan with dry-run, JSON, capability detection, detached fallback, and standalone recovery m
+- [terminal-ops](skills/terminal-ops/SKILL.md):Evidence-first repo execution workflow for ECC.
+- [terraform-patterns](skills/terraform-patterns/SKILL.md):Terraform and OpenTofu infrastructure-as-code patterns for project layout, remote state, modules, variables, secrets, safe plan/apply workflows, and CI.
+- [test-collaboration](skills/test-collaboration/SKILL.md):Inventory and govern a project's test assets.
+- [tinystruct-patterns](skills/tinystruct-patterns/SKILL.md):Expert guidance for developing with the tinystruct Java framework.
+- [token-budget-advisor](skills/token-budget-advisor/SKILL.md):Offer a choice of response depth (25%/50%/75%/100%) with token estimates before answering, then answer at that level.
+- [token-card](skills/token-card/SKILL.md):Render a token-usage stat card from local Claude Code, Codex, Gemini CLI, and OpenCode session logs and commit it into the repository as a file.
+- [typescript-patterns](skills/typescript-patterns/SKILL.md):TypeScript patterns for strict, type-safe, maintainable code in modern TypeScript and JavaScript applications.
+- [ui-demo](skills/ui-demo/SKILL.md):Record polished UI demo videos using Playwright.
+- [ui-to-vue](skills/ui-to-vue/SKILL.md):Use when the user has UI screenshots or design exports that need batch conversion into Vue 3 components, especially with Vant, Element Plus, or Ant Design Vue.
+- [uncloud](skills/uncloud/SKILL.md):Use when managing an Uncloud cluster — deploying services, configuring Caddy ingress, adding static proxy routes for non-cluster devices, publishing ports, scaling, inspecting logs, or managing machin
+- [unified-memory](skills/unified-memory/SKILL.md):Share durable, inspectable context and handoffs between Claude, Codex, Hermes, Cursor, OpenCode, and other agents through the local ECC Memory Vault.
+- [unified-notifications-ops](skills/unified-notifications-ops/SKILL.md):Operate notifications as one ECC-native workflow across GitHub, Linear, desktop alerts, hooks, and connected communication surfaces.
+- [verification-loop](skills/verification-loop/SKILL.md):Run a six-phase verification of a Claude Code session's work — build, type check, lint, tests with coverage, security grep, and diff review — then produce a PASS/FAIL verification report.
+- [video-editing](skills/video-editing/SKILL.md):AI-assisted video editing workflows for cutting, structuring, and augmenting real footage.
+- [videodb](skills/videodb/SKILL.md):Ingest, index, search, edit, and monitor video and audio with the VideoDB Python SDK — upload from files, URLs, or RTSP feeds, build spoken and scene indexes with timestamped search and playable clips
+- [visa-doc-translate](skills/visa-doc-translate/SKILL.md):Translate visa document images (bank deposit, employment, income, and retirement certificates; HEIC, PNG, or JPG) into English via OCR and produce a bilingual PDF pairing the original image with a for
+- [vite-patterns](skills/vite-patterns/SKILL.md):Vite build tool patterns including config, plugins, HMR, env variables, proxy setup, SSR, library mode, dependency pre-bundling, and build optimization.
+- [vue-patterns](skills/vue-patterns/SKILL.md):Vue.js 3 Composition API patterns, component architecture, reactivity best practices, Pinia state management, Vue Router navigation, and Nuxt SSR patterns.
+- [web-perimeter-owasp-2025-audit](skills/web-perimeter-owasp-2025-audit/SKILL.md):Passive, non-destructive web perimeter security auditing mapped to OWASP Top 10:2025 surface leads, CDN Unkeyed Header Web Cache Poisoning (X-Forwarded-Host), supply chain manifest exposure, git objec
+- [windows-desktop-e2e](skills/windows-desktop-e2e/SKILL.md):E2E testing for Windows native desktop apps (WPF, WinForms, Win32/MFC, Qt) using pywinauto and Windows UI Automation.
+- [workspace-surface-audit](skills/workspace-surface-audit/SKILL.md):Audit the active repo, MCP servers, plugins, connectors, env surfaces, and harness setup, then recommend the highest-value ECC-native skills, hooks, agents, and operator workflows.
+- [x-api](skills/x-api/SKILL.md):X/Twitter API integration for posting tweets, threads, reading timelines, search, and analytics.
+- [yoruba-localization-testing](skills/yoruba-localization-testing/SKILL.md):Test Yoruba (yo) and English bilingual interfaces for tone marks, underdots, Unicode normalization, translation fallback, and accessibility.
