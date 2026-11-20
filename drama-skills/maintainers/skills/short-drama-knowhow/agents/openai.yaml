@@ -1,0 +1,6 @@
+interface:
+  display_name: "短剧创作经验提炼"
+  short_description: "从授权短剧材料中提炼创作经验，并按规则等级验证与维护公开规则"
+  default_prompt: "使用 $short-drama-knowhow 从维护者明确授权的只读项目材料中提炼或修订短剧创作经验，完成脱敏核查并按规则等级执行对应验证后再合入公开文档。"
+policy:
+  allow_implicit_invocation: false
