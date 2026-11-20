@@ -1,0 +1,139 @@
+"""Google Gemini as the image / video reader, through its own API (not an OpenAI-compatible gateway).
+
+For users whose only key is a Gemini key: GEMINI_API_KEY (or GOOGLE_API_KEY), model REA_GEMINI_MODEL. Gemini watches
+video with its sound, so a clip goes in whole: inline when small, else through the Files API (deleted after the
+answer; an upload that can't be deleted expires on Google's side within 48 hours). Short clips are sampled densely
+(video_metadata.fps), long ones at Gemini's default. Used only when the user asks for a VLM (--vlm): the video leaves
+the machine.
+"""
+from __future__ import annotations
+
+import base64
+import json
+import os
+import subprocess
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+from . import __version__
+from .util import LOG
+
+API = "https://generativelanguage.googleapis.com"
+DEFAULT_MODEL = "gemini-3.7-flash"
+INLINE_MAX = 18 * 1024 * 1024  # request bodies over ~20 MB must use the Files API
+CLIP_FPS = ((30.0, 10.0), (120.0, 4.0))  # (clips up to s, frames a second); longer: Gemini's default (1)
+
+
+def api_key() -> str:
+    return os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")
+
+
+def configured() -> bool:
+    return bool(api_key())
+
+
+def _duration(p: Path) -> float:
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(p)],
+                       capture_output=True, text=True)
+    try:
+        return float(r.stdout.strip())
+    except ValueError:
+        return 0.0
+
+
+class GeminiError(RuntimeError):
+    pass
+
+
+class GeminiClient:
+    """ask_json(prompt, media) like VLMClient; media = [(path, mime)], images and video/mp4 clips."""
+    video_ok = True
+
+    def __init__(self, model: str | None = None, key: str | None = None, timeout: float = 600.0):
+        self.key = key or api_key()
+        if not self.key:
+            raise GeminiError("GEMINI_API_KEY is not set")
+        self.model = model or os.getenv("REA_GEMINI_MODEL", "") or DEFAULT_MODEL
+        self.timeout = timeout
+        self.models = [self.model]
+
+    def describe(self) -> str:
+        return f"Gemini {self.model}"
+
+    def _call(self, method: str, url: str, data: bytes | None = None, headers: dict | None = None, timeout: float = 120.0):
+        req = urllib.request.Request(url, data=data, method=method,
+                                     headers={"x-goog-api-key": self.key, "User-Agent": f"rea-video/{__version__}", **(headers or {})})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return dict(r.headers), r.read()
+        except urllib.error.HTTPError as exc:
+            body = exc.read()[:300].decode("utf-8", "replace")
+            raise GeminiError(f"HTTP {exc.code}: {body}") from None
+
+    def _upload(self, p: Path, mime: str, max_wait: float = 900.0) -> dict:
+        size = p.stat().st_size
+        h, _ = self._call("POST", f"{API}/upload/v1beta/files", json.dumps({"file": {"display_name": "rea-video"}}).encode(),
+                          {"X-Goog-Upload-Protocol": "resumable", "X-Goog-Upload-Command": "start",
+                           "X-Goog-Upload-Header-Content-Length": str(size), "X-Goog-Upload-Header-Content-Type": mime,
+                           "Content-Type": "application/json"})
+        url = {k.lower(): v for k, v in h.items()}.get("x-goog-upload-url")
+        if not url:
+            raise GeminiError("the Files API returned no upload URL")
+        _, body = self._call("POST", url, p.read_bytes(), {"Content-Length": str(size), "X-Goog-Upload-Offset": "0",
+                                                           "X-Goog-Upload-Command": "upload, finalize"}, timeout=3600.0)
+        info = json.loads(body)["file"]
+        waited = 0.0
+        while info.get("state") == "PROCESSING" and waited < max_wait:
+            time.sleep(2.0)
+            waited += 2.0
+            info = json.loads(self._call("GET", f"{API}/v1beta/{info['name']}")[1])
+        if info.get("state") != "ACTIVE":
+            self._delete(info.get("name", ""))
+            raise GeminiError(f"uploaded file state {info.get('state')}")
+        return info
+
+    def _delete(self, name: str) -> None:
+        if not name:
+            return
+        try:
+            self._call("DELETE", f"{API}/v1beta/{name}")
+        except Exception as exc:  # noqa: BLE001  cleanup never masks the answer; Google drops it within 48 h
+            LOG.warning("could not delete %s from Gemini (%s); it expires within 48 hours", name, str(exc)[:80])
+
+    def ask_json(self, prompt: str, media: list[tuple[Path, str]], max_tokens: int = 4096) -> dict:
+        from .vlm import parse_json
+
+        parts, uploaded = [], []
+        inline = sum(Path(p).stat().st_size for p, _ in media) <= INLINE_MAX
+        try:
+            for p, mime in media:
+                p = Path(p)
+                part: dict
+                if inline or not mime.startswith("video/"):
+                    part = {"inline_data": {"mime_type": mime, "data": base64.b64encode(p.read_bytes()).decode()}}
+                else:
+                    info = self._upload(p, mime)
+                    uploaded.append(info["name"])
+                    part = {"file_data": {"mime_type": info.get("mimeType") or mime, "file_uri": info["uri"]}}
+                if mime.startswith("video/"):
+                    d = _duration(p)
+                    fps = next((f for lim, f in CLIP_FPS if 0 < d <= lim), None)
+                    if fps:
+                        part["video_metadata"] = {"fps": fps}
+                parts.append(part)
+            parts.append({"text": prompt})
+            body = {"contents": [{"role": "user", "parts": parts}],
+                    "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.2, "responseMimeType": "application/json"}}
+            _, raw = self._call("POST", f"{API}/v1beta/models/{self.model}:generateContent", json.dumps(body).encode(),
+                                {"Content-Type": "application/json"}, timeout=self.timeout)
+        finally:
+            for name in uploaded:
+                self._delete(name)
+        data = json.loads(raw)
+        try:
+            text = "".join(pt.get("text", "") for pt in data["candidates"][0]["content"]["parts"])
+        except (KeyError, IndexError, TypeError) as exc:
+            raise GeminiError(f"no answer: {str(data)[:200]}") from exc
+        return parse_json(text)
