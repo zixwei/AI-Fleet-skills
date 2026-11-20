@@ -1,0 +1,70 @@
+{
+  "id": "sample-fixture-draft-001",
+  "name": "sample-fixture",
+  "version": "0.1.0",
+  "duration": 10000000,
+  "fps": 30,
+  "canvas_config": {
+    "width": 1920,
+    "height": 1080,
+    "ratio": "16:9"
+  },
+  "tracks": [
+    {
+      "id": "track-video-001",
+      "type": "video",
+      "segments": [
+        {
+          "id": "seg-video-001",
+          "material_id": "mat-video-001",
+          "source_timerange": { "start": 0, "duration": 10000000 },
+          "target_timerange": { "start": 0, "duration": 10000000 }
+        }
+      ]
+    },
+    {
+      "id": "track-text-001",
+      "type": "text",
+      "segments": [
+        {
+          "id": "seg-text-001",
+          "material_id": "mat-text-001",
+          "target_timerange": { "start": 1000000, "duration": 3000000 }
+        }
+      ]
+    }
+  ],
+  "materials": {
+    "videos": [
+      {
+        "id": "mat-video-001",
+        "path": "./media/placeholder.mp4",
+        "duration": 10000000,
+        "width": 1920,
+        "height": 1080,
+        "comment": "실제 미디어 파일은 fixtures README 참고하여 자체 생성"
+      }
+    ],
+    "audios": [],
+    "texts": [
+      {
+        "id": "mat-text-001",
+        "content": "테스트 자막",
+        "style": {
+          "font": "Pretendard",
+          "size": 48,
+          "color": "#FFFFFF"
+        }
+      }
+    ],
+    "effects": []
+  },
+  "_fixture_meta": {
+    "purpose": "스킬 read-only 명령 동작 검증용 최소 draft 예시",
+    "expected_commands": [
+      "capcut info --project ./sample-draft",
+      "capcut tracks --project ./sample-draft",
+      "capcut texts --project ./sample-draft"
+    ]
+  }
+}

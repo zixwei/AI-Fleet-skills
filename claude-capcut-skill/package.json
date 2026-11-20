@@ -1,0 +1,39 @@
+{
+  "name": "claude-capcut-skill",
+  "version": "0.2.0",
+  "description": "Claude Code skill for automating CapCut/JianYing projects via capcut-cli. Timecode edits, content-based scene search, talking-head auto-cut, long-to-shorts, subtitle generation/styling/translation.",
+  "type": "module",
+  "scripts": {
+    "doctor": "node scripts/doctor.mjs",
+    "install:cli": "node scripts/install.mjs",
+    "lint": "node --check scripts/*.mjs"
+  },
+  "keywords": [
+    "claude-code",
+    "claude-skill",
+    "capcut",
+    "jianying",
+    "video-editing",
+    "automation",
+    "mcp"
+  ],
+  "author": "mane23-ai",
+  "license": "MIT",
+  "homepage": "https://github.com/mane23-ai/claude-capcut-skill",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mane23-ai/claude-capcut-skill.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mane23-ai/claude-capcut-skill/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "capcut-cli": ">=0.9.0"
+  },
+  "optionalDependencies": {
+    "cross-spawn": "^7.0.3"
+  }
+}
