@@ -1,0 +1,20 @@
+# Production overrides for the live demo (c7g.xlarge, 4 vCPU / 8 GB).
+# Only fields that differ from config/default.yaml are listed.
+# Load with:  uv run run_api.py --config config/prod.yaml
+# (the Dockerfile does this by default).
+
+# ── Concurrency ─────────────────────────────────────────────
+# Each ffmpeg process uses ~300MB RAM. Total peak = api.max_workers (2) ×
+# merge_video.workers (4) ≈ 2.4 GB on this 4-vCPU / 8 GB box, plus ~2 GB
+# for Python / OS / Caddy ≈ 4.4 GB of 8 GB. Comfortable headroom.
+merge_video:
+  workers: 4
+
+# ── Public-demo guardrails ──────────────────────────────────
+api:
+  max_workers: 2             # 2 concurrent jobs — doubles throughput vs serial-only
+  free_trial_jobs: 1         # let each IP try once for free before needing their own key
+  job_ttl_hours: 24          # auto-delete completed/failed jobs older than 24h (prevents disk fill on long-running server)
+  url_upload: false          # disable yt-dlp URL ingest on the public demo
+  max_duration_seconds: 1800 # reject videos longer than 30 min — bounds API spend
+  max_file_size_mb: 500      # reject uploads larger than 500 MB — covers ~30 min 720p H.264

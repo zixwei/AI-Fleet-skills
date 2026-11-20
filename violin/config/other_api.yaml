@@ -1,0 +1,18 @@
+# Example override — premium stack: OpenAI for transcription/translation,
+# ElevenLabs for TTS. Useful as a reference when wiring up alternate providers.
+# Requires OPENAI_API_KEY and ELEVENLABS_API_KEY in .env.
+# Load with:  uv run run_api.py --config config/other_api.yaml
+
+models:
+  transcription:
+    provider: openai
+    model: whisper-1
+  translation:
+    provider: openai
+    model: gpt-5.5
+  tts:
+    provider: elevenlabs
+    model: eleven_v3
+  chat:
+    provider: openai
+    model: gpt-5.5            # must be vision-capable to read the sampled frames
