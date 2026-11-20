@@ -1,0 +1,261 @@
+{
+  "claim": "abstaining 10-provider source-pipeline classification with version subfamily attribution and calibrated binary synthetic-image detection; not SynthID detection",
+  "schema": "multi-provider-source-v8",
+  "artifact_file": "multi-provider-source-v8.npz",
+  "artifact_sha256": "7e7a9ee708bc2d64b45b87829b2c45e487aed3936220fb09843267662c99e0da",
+  "artifact_size_mb": 57.8,
+  "feature_dimension": 512,
+  "vit_output_dimension": 59,
+  "synthetic_fusion_dimension": 106,
+  "multimodal_provider_dimension": 195,
+  "stacked_stage2_dimension": 666,
+  "classes": [
+    "openai",
+    "google",
+    "bytedance",
+    "flux",
+    "stable_diffusion",
+    "meta",
+    "midjourney",
+    "ideogram",
+    "firefly",
+    "xai",
+    "unknown"
+  ],
+  "corpus_counts": {
+    "total": 145110,
+    "train": 120179,
+    "train_clean": 119503,
+    "calibration": 8363,
+    "calibration_recomp_neg": 3011,
+    "calibration_crop_resize_dev": 2972,
+    "test": 10585,
+    "multimodal_v8_train_views": 25877,
+    "multimodal_v8_cal_views": 7280,
+    "sealed_foreign_eval_views": 84
+  },
+  "open_benchmark_v2_578": {
+    "non_ai_total": 200,
+    "non_ai_fp": 0,
+    "non_ai_fpr": 0.0,
+    "slice_fpr_pct": {
+      "camera_photo": 0.0,
+      "ui_screenshot": 0.0,
+      "science_diagram": 0.0,
+      "scanned_document": 0.0
+    },
+    "native_ai_total": 125,
+    "native_ai_synthetic_recall": 0.984,
+    "native_ai_provider_attribution": 0.808,
+    "arena_ai_total": 253,
+    "arena_ai_synthetic_recall": 0.9011857707509882,
+    "arena_ai_provider_attribution": 0.23715415019762845,
+    "overall_ai_recall": 0.9285714285714286,
+    "overall_provider_attribution": 0.42592592592592593,
+    "overall_precision": 1.0,
+    "median_cpu_ms": 385.9
+  },
+  "sealed_foreign_openworld_eval": {
+    "evaluated_views": 84,
+    "synthetic_recall": 0.6786,
+    "honest_unknown_abstention_rate": 0.9643
+  },
+  "locked_internal_test_e2e_rgb": {
+    "evaluated_parents": 4415,
+    "supported_ai_parents": 2074,
+    "real_non_ai_parents": 2341,
+    "native": {
+      "synthetic_recall_supported_ai": 0.97541,
+      "exact_provider_recall_supported_ai": 0.95178,
+      "real_synthetic_fp": 2,
+      "real_synthetic_fpr": 0.00085,
+      "real_provider_fp": 1,
+      "real_provider_fpr": 0.00042716787697565144,
+      "roc_auc": 0.999659,
+      "pr_auc": 0.999626
+    },
+    "arena_transcoded": {
+      "synthetic_recall_supported_ai": 0.79364,
+      "exact_provider_recall_supported_ai": 0.46962,
+      "real_synthetic_fp": 16,
+      "real_synthetic_fpr": 0.00683,
+      "real_provider_fp": 3,
+      "roc_auc": 0.984702,
+      "pr_auc": 0.984587
+    }
+  },
+  "external_blind_selective_v8_e2e_rgb": {
+    "evaluated_parents": 1512,
+    "synthetic_fp": 4,
+    "synthetic_fpr": 0.0026455026455026454,
+    "provider_fp": 1,
+    "provider_fpr": 0.0006613756613756614,
+    "by_domain": {
+      "diagram": {
+        "evaluated": 305,
+        "synthetic_fp": 0,
+        "synthetic_fpr": 0.0,
+        "provider_fp": 0
+      },
+      "document": {
+        "evaluated": 308,
+        "synthetic_fp": 0,
+        "synthetic_fpr": 0.0,
+        "provider_fp": 0
+      },
+      "game_art": {
+        "evaluated": 215,
+        "synthetic_fp": 2,
+        "synthetic_fpr": 0.009302325581395349,
+        "provider_fp": 1
+      },
+      "interface": {
+        "evaluated": 327,
+        "synthetic_fp": 1,
+        "synthetic_fpr": 0.0030581039755351682,
+        "provider_fp": 0
+      },
+      "photo": {
+        "evaluated": 25,
+        "synthetic_fp": 0,
+        "synthetic_fpr": 0.0,
+        "provider_fp": 0
+      },
+      "vector": {
+        "evaluated": 332,
+        "synthetic_fp": 1,
+        "synthetic_fpr": 0.0030120481927710845,
+        "provider_fp": 0
+      }
+    }
+  },
+  "locked_internal_test": {
+    "n": 10585,
+    "binary_roc_auc": 0.9977294795878008,
+    "binary_pr_auc": 0.9984718883260219,
+    "unknown_specificity": 0.999338915821948,
+    "unknown_fpr": 0.0006610841780520053,
+    "photo_fpr": 0.0,
+    "structured_fpr": 0.0012738853503184713,
+    "aggregate_target_recall": 0.832809657681495,
+    "clean_provenance_target_recall": 0.8413839211098111,
+    "any_ai_recall": 0.8667107656689267,
+    "any_ai_precision": 0.9994279176201373,
+    "cross_provider_errors": 205,
+    "recall": {
+      "openai": 0.9208389715832206,
+      "google": 0.8639652677279306,
+      "bytedance": 0.7197943444730077,
+      "flux": 0.8084008843036109,
+      "stable_diffusion": 0.7717277486910995,
+      "meta": 0.8617021276595744,
+      "midjourney": 0.8211382113821138,
+      "ideogram": 0.847457627118644,
+      "firefly": 0.6116504854368932,
+      "xai": 0.4583333333333333
+    },
+    "precision": {
+      "openai": 0.9611581920903954,
+      "google": 0.9746938775510204,
+      "bytedance": 0.9893992932862191,
+      "flux": 0.9522569444444444,
+      "stable_diffusion": 0.9813581890812251,
+      "meta": 0.9878048780487805,
+      "midjourney": 0.8782608695652174,
+      "ideogram": 0.7874015748031497,
+      "firefly": 0.9130434782608695,
+      "xai": 0.9166666666666666
+    },
+    "standalone_roc_auc": {
+      "openai": 0.9996558903286098,
+      "google": 0.9995648580024351,
+      "bytedance": 0.9863160673478798,
+      "flux": 0.9992638922674749,
+      "stable_diffusion": 0.998662371734671,
+      "meta": 0.9994983261911237,
+      "midjourney": 0.9999838759956573,
+      "ideogram": 0.9998562048539266,
+      "firefly": 0.994773370074495,
+      "xai": 0.9989670559717937
+    },
+    "real_variety_specificity": {
+      "photo": 1.0,
+      "photo_retouched": 0.9941002949852508,
+      "classical_inpaint": 1.0,
+      "digital_art": 0.9977272727272727,
+      "game_art": 1.0,
+      "vector": 1.0,
+      "interface": 1.0,
+      "diagram": 1.0,
+      "chart_data_viz": 1.0,
+      "technical_architecture": 1.0,
+      "procedural_graphic": 1.0,
+      "document": 1.0,
+      "gov_scientific_doc": 1.0,
+      "print_publishing": 1.0,
+      "stress_recompressed": 1.0,
+      "foreign_ai": 1.0
+    }
+  },
+  "external_blind_selective_v8_real_varieties": {
+    "total_evaluated": 2267,
+    "total_false_positives": 1,
+    "overall_fpr": 0.0004411116012351125,
+    "overall_specificity": 0.9995588883987649,
+    "per_variety": {
+      "photo": {
+        "evaluated": 450,
+        "false_positives": 0,
+        "fpr": 0.0,
+        "specificity": 1.0
+      },
+      "vector": {
+        "evaluated": 332,
+        "false_positives": 0,
+        "fpr": 0.0,
+        "specificity": 1.0
+      },
+      "game_art": {
+        "evaluated": 230,
+        "false_positives": 0,
+        "fpr": 0.0,
+        "specificity": 1.0
+      },
+      "interface": {
+        "evaluated": 342,
+        "false_positives": 0,
+        "fpr": 0.0,
+        "specificity": 1.0
+      },
+      "diagram": {
+        "evaluated": 305,
+        "false_positives": 0,
+        "fpr": 0.0,
+        "specificity": 1.0
+      },
+      "document": {
+        "evaluated": 308,
+        "false_positives": 0,
+        "fpr": 0.0,
+        "specificity": 1.0
+      },
+      "stress_recompressed": {
+        "evaluated": 300,
+        "false_positives": 1,
+        "fpr": 0.0033333333333333335,
+        "specificity": 0.9966666666666667
+      }
+    }
+  },
+  "stage2_version_accuracy": {
+    "openai": 0.9559147685525349,
+    "google": 0.9698492462311558,
+    "bytedance": 0.9678571428571429,
+    "flux": 0.9498632634457612,
+    "stable_diffusion": 0.9796472184531886,
+    "midjourney": 0.9801980198019802,
+    "ideogram": 0.77,
+    "firefly": 1.0,
+    "xai": 0.7727272727272727
+  }
+}

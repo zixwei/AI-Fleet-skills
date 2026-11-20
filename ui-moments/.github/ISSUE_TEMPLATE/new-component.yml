@@ -1,0 +1,42 @@
+name: 投稿组件 / New component
+description: 提议新增一个原创组件，或集成一个开源库
+labels: [component]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: 组件名称
+    validations:
+      required: true
+  - type: dropdown
+    id: origin
+    attributes:
+      label: 来源类型
+      options:
+        - 原创（自己构思与实现）
+        - 开源完整集成（有 MIT / Apache 等许可证）
+        - 参考想法后重新实现（只借鉴想法）
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: 交互描述
+      description: 它解决什么问题？用户怎样操作？有什么特别的动效？
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: 上游仓库或参考链接（如有）
+  - type: input
+    id: license
+    attributes:
+      label: 上游许可证（如有）
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: 确认
+      options:
+        - label: 我已阅读 CONTRIBUTING.md 和 docs/attribution.md 中的来源规则
+          required: true

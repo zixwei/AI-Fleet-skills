@@ -1,0 +1,34 @@
+name: 问题反馈 / Bug report
+description: 某个组件、导出或页面没有按预期工作
+labels: [bug]
+body:
+  - type: input
+    id: component
+    attributes:
+      label: 涉及的组件或页面
+      placeholder: 例如：刻度旋钮、风格库、加载动效导出
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开 …
+        2. 点按 …
+        3. 看到 …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望的结果
+  - type: input
+    id: env
+    attributes:
+      label: 浏览器与系统
+      placeholder: 例如：Safari 19 / iOS 20，或 Chrome 142 / macOS
+  - type: textarea
+    id: media
+    attributes:
+      label: 截图或录屏

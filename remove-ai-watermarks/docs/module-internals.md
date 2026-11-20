@@ -1,0 +1,4515 @@
+# Module internals
+
+This page documents the current implementation contract. It intentionally
+avoids experiment logs, corpus counts, and calibration history. Those records
+live in [the verification plan](verification-plan.md) and the research archive
+listed in [the documentation index](index.md).
+
+Read the relevant section before changing a subsystem. When this page and the
+code disagree, the code and its tests are authoritative and this page must be
+updated in the same change.
+
+## Architecture
+
+The package has four main paths, plus an opt-in source-pipeline classifier that
+is not on the provenance or removal graph:
+
+```mermaid
+flowchart LR
+    Input[Input file] --> Identify[Identify provenance]
+    Input --> Visible[Visible mark removal]
+    Input --> Invisible[Diffusion regeneration]
+    Input --> Metadata[Metadata stripping]
+    Input --> ClassifySource[classify_source]
+
+    Identify --> Report[ProvenanceReport]
+    Visible --> VisibleOutput[Localized and filled image]
+    Invisible --> InvisibleOutput[Regenerated image]
+    Metadata --> MetadataOutput[Container with AI metadata removed]
+    ClassifySource --> SourceClassification
+```
+
+`identify` does not call `classify_source`. `has_invisible_target` and `all`
+do not read it.
+
+The `all` command runs visible removal, optional invisible regeneration, and
+metadata stripping in that order.
+
+## Command line interface
+
+[`cli.py`](../src/remove_ai_watermarks/cli.py) owns command parsing and
+user-facing exit behavior.
+
+Important contracts:
+
+- Single-image arguments reject directories.
+- `visible` writes no output when no registered mark is selected and exits with
+  `EXIT_NO_VISIBLE_MARK`.
+- `invisible` writes no output when no supported local signal is found, unless
+  `--force` is supplied.
+  It decodes the source before the scrub gate and exits `1` when it cannot,
+  because the gate reads undecodable bytes as "no target" and would otherwise
+  report the no-signal code for a file it never read (fixed 2026-10-17).
+- The two no-signal conditions currently share exit code `2`, and so does a
+  `batch` or `video batch` directory with no supported file, which writes
+  nothing (decided 2026-10-18).
+- An input that is not a readable container exits `1` from `identify`,
+  `metadata` and every `video` command, and fails its row in `batch` and `video
+  batch` (fixed 2026-10-18). The metadata scanners read raw bytes, so random
+  bytes, an empty file or a truncated PNG or MP4 used to print the same "No AI
+  metadata found" or "AI metadata stripped" a real file gets, with exit `0`.
+  `metadata.unreadable_reason` is the one probe: rasters must decode in Pillow or
+  OpenCV, ISOBMFF boxes and EBML elements must tile the file, and a RIFF file must
+  hold its declared size. `strip_and_verify` and `video._video_source` ask it, and
+  `identify` prints its report first, so an AI signal read from a truncated file
+  is still shown. Absent optional detectors are not unreadable input: without the
+  pixel stack `identify` keeps exit `0` and its caveat (decided 2026-10-18).
+  Regression coverage: `tests/test_fail_closed.py`.
+- `visible` and `erase` strip and verify AI metadata on a staged sibling and exit
+  `1` with nothing published when a marker survives; they used to swallow a failed
+  strip unless `--verbose` was set. The library `remove_visible` does the same and
+  raises `MetadataStripIncomplete`, as `remove_all` already did. The diffusion
+  writer behind `invisible` stages the same way and raises with nothing published
+  (fixed 2026-10-19; it used to leave the marked file at the output path).
+  `_internal.utils.staged_sibling` is the shared stage: it never pre-creates the
+  name, so the published file keeps the default permissions. These writers strip
+  through `metadata.strip_written_output`, which skips the readability probe:
+  the file is the package's own encode, and the probe's full decode doubled the
+  cost of the strip (decided 2026-10-19).
+- A quiet `metadata --check` and a successful `metadata --remove` (same for
+  `video metadata`) end by repeating the `identify` limit: the pixel channel is
+  untouched and a watermark such as SynthID has no local decoder once its
+  metadata proxy is gone, so neither outcome is a clean verdict.
+- `visible`, `erase`, `all` and `batch` report a missing pixel stack as an
+  install hint naming `remove-ai-watermarks[visible]`, not as a traceback. The
+  base package ships without those dependencies, as did legacy metadata-only
+  Homebrew builds, so a first run following the project's old instructions died on `ModuleNotFoundError: No module named 'cv2'`.
+  `_pixels_required` wraps the four image commands. Video pixel-processing paths
+  reach the same build through `video._require_video_runtime`, which names the
+  `video` extra, while `video metadata` and `video identify --no-visible` bypass
+  the pixel runtime. `remove_batch` re-raises the same ImportError instead of
+  counting it once per file, because one absent package is not N broken images.
+  All three image sites ask `optional_deps.pixels_available()`
+  rather than matching the exception's module name: an ImportError raised inside
+  `cv2/__init__.py` carries `cv2.cv2` and a numpy ABI mismatch carries `None`, so
+  a name match let exactly the tracebacks this guard exists for through.
+- Hard processing and write failures exit with code `1`.
+- `audio all`, `video invisible`, `video visible`, `video erase` and `video all`
+  exit `1` when AI metadata survived in the published output, with or without
+  `--json`. Both output modes go through `_emit_json_result` and
+  `_exit_if_metadata_survived`; `video visible` passes `EXIT_NO_VISIBLE_MARK`
+  so a run that wrote nothing keeps the no-signal code. `video erase --json`
+  once exited `0` here because its copy of the block omitted the check (fixed in
+  0.64.0 and folded into the shared helpers afterward).
+  `TestMediaCommandExitContract` in `tests/test_video.py` covers every such
+  command in both modes; add a new command to its table.
+- `all` can still write the completed visible and metadata stages when the
+  diffusion dependencies are unavailable, but exits with code `1` so the
+  partial result is not reported as complete.
+- `batch` counts per-file failures and exits nonzero if any file failed or an
+  applicable invisible stage was skipped because its dependencies were absent.
+
+The batch CLI prints plain text and forwards verbose progress events directly.
+Its library summary derives counts from the recorded per-file results and errors.
+
+The decorators for diffusion options are shared by `invisible`, `all`, and
+`batch`. The runtime help generated by Click is the source of truth for option
+names and defaults.
+
+`--adaptive-polish` is tri-state: it declares `default=None`, so "the user did not
+choose" is a value the CLI passes through rather than a default it has to invent.
+`resolve_adaptive_polish` in `watermark_profiles.py` turns that `None` into the
+profile's answer (off for `qwen-zimage` and `qwen21-zimage`, whose outputs already
+match the input's detail level; on for `sdxl-zimage`). The same call runs inside
+`InvisibleEngine.remove_watermark`, so a library caller and a CLI caller on one
+profile get the same output.
+
+It used to read Click's parameter source in the CLI instead. That put per-profile
+data in the argument-parsing layer, left the engine declaring the opposite default,
+and silently lost the polish for anything supplying the flag non-interactively (an
+envvar default or a wrapper calling `main()` with a defaulted list is classified
+`DEFAULT`). The seed follows the same rule: the CLI does not pre-resolve it either.
+
+Regression coverage:
+
+- [`test_cli.py`](../tests/test_cli.py)
+- [`test_cli_robustness.py`](../tests/test_cli_robustness.py)
+- [`test_optional_deps.py`](../tests/test_optional_deps.py)
+
+## High-level Python API
+
+[`api.py`](../src/remove_ai_watermarks/api.py) provides the visible-mark entry
+points:
+
+- `remove_visible`
+- `remove_visible_detailed`, returning a `VisibleRemovalResult` with per-mark
+  post-fill validation
+- `visible_provenance`
+
+and the image pipeline that the `all` and `batch` commands are thin wrappers
+over:
+
+- `remove_all`, returning a `RemoveAllResult` after the visible, invisible, and
+  metadata stages. Its legacy `visible_label` remains, while `visible_status`
+  and `visible_marks` retain the aggregate and per-mark post-fill result
+- `remove_batch`, returning a `BatchSummary` for one directory and one mode.
+  `items` contains one lightweight `BatchItemResult` per source, including the
+  same visible status and per-mark records for visible/all modes without keeping
+  image arrays alive across the directory
+- `InvisibleOptions`, the invisible stage's knobs as one immutable value. Engine
+  knobs only, under the engine's own names and defaults, so a bare
+  `InvisibleOptions()` behaves exactly like calling the engine with no arguments.
+  The engine takes them across two callables, `__init__` for what shapes the
+  loaded stack and `remove_watermark` for the per-image ones, so `_run_invisible`
+  forwards each field to the right one rather than splatting the whole bag. Two
+  defaults silently stopped
+  mirroring: `max_resolution=None` reached `_target_size`'s `max_resolution > 0`
+  and raised `TypeError` on every library call, and `cpu_offload=True` made a
+  library run slower than the identical CLI run.
+  `TestInvisibleOptionsMirrorTheEngine` compares the two signatures field by
+  field, and deliberately keeps no exception table: a field needing one is a
+  field that belongs elsewhere. `force` was such a field, and it decides whether
+  the engine runs rather than how, so it is a parameter of `remove_all` and
+  `remove_batch` next to `backend` and `sensitivity`
+- `MetadataStripIncomplete`, raised before any write when AI metadata survives
+
+`remove_all` reports progress as `(stage, detail)` pairs of stable tokens, not
+prose the caller has to parse back. Both pipeline entry points call
+`remove_auto_marks_detailed` directly; carrying validation into their result
+objects adds no detector or fill pass. The original positional constructors for
+`RemoveAllResult` and `BatchSummary` remain valid through defaulted appended
+fields.
+
+An invisible batch no-op replaces any existing output with the current input;
+it cannot count a stale file as this run's result. A successful invisible
+result names the published output even when the engine used a temporary
+working file. `remove_all` carries display tags through its intermediate,
+and keeps the original alpha aligned if diffusion bakes EXIF orientation
+into the RGB raster.
+
+The package root exposes all of them lazily through
+[`__getattr__`](../src/remove_ai_watermarks/__init__.py), keeping a plain package
+import free of the heavier image and model imports.
+
+For path inputs, both visible-removal entry points read provenance metadata,
+preserve alpha, and optionally write and strip metadata. Array inputs are
+treated as BGR arrays and have no file provenance or separate alpha plane.
+
+When no visible mark is removed, a same-format path copy preserves the original
+bytes. `write_noop=False` leaves the requested output path untouched instead.
+
+Regression coverage:
+
+- [`test_api.py`](../tests/test_api.py)
+- [`test_image_io.py`](../tests/test_image_io.py)
+
+## Audio
+
+[`audio.py`](../src/remove_ai_watermarks/audio.py) exposes `identify_audio`, `inspect_audio_metadata`, `remove_audio_metadata`, `remove_audio_invisible`, `remove_audio_all`, and `remove_audio_batch`. Inspection binds reports to a source hash, checks each
+channel and a multichannel downmix with whole-clip (`<= 30 s` bounded
+`whole_segments` passes on tracks exceeding 30 seconds) and sliding-window reads,
+attaches install hints when explicitly requested optional decoders are missing (`scheme="auto"` scans only installed compatible decoders and leaves status `unverified` only when zero decoders are installed), and keeps
+incomplete checks unverified. AudioSeal runs both a resampled 16 kHz receiver
+and a native-sample-clock receiver for validated 24 and 48 kHz sources. Each
+`AudioDetection.decoder_sample_rate` identifies that receiver and the native
+OpenVoice default-signature receiver and both SilentCipher receivers;
+standard synchronized WavMark and Perth leave this field unset. Detection is the union, while a complete negative
+requires both clocks for these profiles. Other native clocks are not calibrated
+and are not added automatically. AudioSeal 0.2 does not resample internally, so converting
+a native-clock mark before decoding can hide it. Each clock uses a separate
+bounded streaming pass and retains the existing whole-clip and window gates.
+A short trailing window reuses preceding samples for all audio decoders,
+including AudioSeal. Isolating a tiny remainder can produce a false positive
+even when the full clip and surrounding unmarked audio are negative. Whole-clip memory limits are defined in that module.
+Default processing requires a compatible source positive and rejects a candidate
+unless the saved output is fully negative. Explicit force permits unverified
+processing. Source changes, remaining AI metadata, geometry changes, and failed
+verification prevent atomic publication. Fidelity is measured after decoding
+the delivered candidate, rather than before encoding.
+
+`_internal/audio_io.py` streams native-rate float samples through ffmpeg and
+ffprobe (falling back to `video_tools.find_video_tool` from
+`portable-ffmpeg-full` when system `PATH` lacks them, shared with
+`_internal/audio_creation.py`), closes producers and child processes on failure,
+and writes atomic `.wav`, `.flac`, `.mp3` (`libmp3lame` 256 kbps CBR + Xing header), `.m4a` (`aac` 192 kbps + faststart), `.ogg`, or `.opus` (`libopus` 192 kbps; RFC 7845 48 kHz resampled back to `info.sample_rate` during `audio_quality.measure_fidelity`) outputs. BigVGAN, Mimi, and FocalCodec WAV outputs select the deterministic bitexact short-RIFF
+writer, omitting encoder tags and RF64 reserve padding. Its size guard runs
+before scanning or encoding a large input view. Other methods retain the
+default RF64-capable writer; FLAC remains a separate encoding and verdict scope.
+`_internal/audio_spectral.py` applies the fixed zero-phase SOS
+profile with neighboring context at streaming boundaries. `_internal/audioseal.py`
+owns the hash-pinned open-model loader and decoder math; the development
+`scripts/audioseal_oracle.py` is its compatibility facade. The benchmark adapter
+hashes the implementation module. Inference disables upstream lazy compilation
+locally without changing global Torch settings. NumPy, SciPy, and neural imports
+remain optional. See [coverage and evidence](audio-video-removal.md).
+
+Audio probing retains the declared spatial channel layout. Raw sample encoding
+passes that layout to FFmpeg rather than guessing from the channel count;
+publication and delivered-file fidelity reject a changed known layout. Missing
+mono/stereo layout labels use their standard single/two-channel assignments.
+Unknown multichannel layouts remain unknown. A synthetic `5.1(side)` roundtrip
+guards against silently relabeling side surrounds as rear surrounds.
+
+`_internal/wavmark.py` validates the complete installed public-model Python
+source tree and checkpoint hash. Its scanner keeps the upstream exact sync
+pattern and payload vote, adds omitted final valid positions and exactly
+one-second inputs, and validates raw message values before thresholding.
+`scripts/wavmark_oracle.py` is a compatibility facade. Audio inspection defaults
+to AudioSeal; `scheme="wavmark"` selects this model and `scheme="all"` requests
+all named packaged decoders. Missing requested models keep that result unverified.
+Short WavMark tails reuse preceding samples to form one complete model window.
+The same route separately checks the published OpenVoice default framing: raw
+32-bit blocks at native samples 0 and 32000 against `b"default "`. It reads only
+the first 48000 native frames, closes the producer before inference, validates
+raw values, and retains fragment and aggregate correlations. Binomial tails
+corrected for these comparisons are diagnostics, not calibrated false-positive
+probabilities. Custom messages and shifted/resampled framing remain outside
+this receiver. Reports label it `framing="openvoice-default"`; its negative
+never replaces the synchronized receiver check.
+
+`_internal/audio_chunks.py` shares bounded neighboring context and producer
+cleanup across transforms. `_internal/audio_codec.py` performs optional EnCodec
+resynthesis through Transformers, with revision-pinned and hash-checked
+configuration and safetensors. It rejects incomplete checkpoint loading,
+supports `stereo_mode="ms"` Mid/Side resynthesis on 2-channel inputs (used by `audio.py` and `video_audio.py` to preserve stereo phantom-center coherence) alongside `"independent"` multichannel passes, resamples with SciPy, and removes only
+model/resampler padding to retain native frame counts. This implementation is
+separate from development studies using the original EnCodec package.
+
+`_internal/audio_vocoder.py` implements the separately selected experimental
+BigVGAN full-track profile. `_bigvgan_network.py` contains the lazy inference
+architecture; upstream license texts and notices ship in `licenses/bigvgan/`.
+Configuration and weights are revision/hash pinned, loaded with weights-only
+strict state matching. `_internal/audio_resampling.py` preserves the rational
+native half-open sample grid across the 44.1 kHz model clock and explicit model
+context padding. Stereo uses raw mid/side; mono is independent. Public audio
+and selected-video-track processing share this profile, its explicit device,
+30-second/sample-value memory bounds, and existing saved-output local decoder
+gates. It is excluded from `auto`; no clipping, normalization, chunk seams,
+global Torch configuration changes, or device fallback are added. Numerical
+parity is distinct from perceptual quality and provider verification.
+
+`_internal/audio_mimi.py` uses the built-in Transformers Mimi architecture with
+revision/hash-checked configuration and safetensors, strict complete loading,
+fixed 32 quantizers and disabled inference caches. CPU FP32 mono/stereo passes
+remain optional; stereo defaults to raw mid/side. The rational resampler maps
+the exact native duration to 24 kHz and back, without external model padding.
+The official forward method owns decoder-excess prefix selection and must
+return the requested model-grid count. No clipping, normalization or alignment
+is added. Its weight attribution is in `licenses/mimi/NOTICE.txt`. Public audio
+and selected-video-track routes expose it only as an explicit experimental
+method, with the shared full-track bounds and existing saved-output decoder
+gates. Local compatibility and numerical parity do not certify SynthID or
+general voice fidelity.
+
+`_internal/audio_focalcodec.py` and `_internal/_focalcodec_network.py` implement
+the separately selected experimental FocalCodec continuous feature-to-Vocos
+profile (`lucadellalib/focalcodec_50hz@d6d6d9524e52155c85193c2c3b8da1cf8842f019`,
+matching upstream `v0.0.1` `cad8bf81d70875f756770449c34909d8b0951642`,
+Apache-2.0 text and third-party notices in `licenses/focalcodec/`). Config and
+safetensors are revision/hash-checked and strictly loaded across all 355 model
+keys without importing unused `knn` conversion dependencies. Inference runs in
+CPU FP32 without binary spherical quantization (`toks_to_feats(feats_to_toks(...))`
+bypassed in favor of continuous 6-layer WavLM features decoded by FocalDecoder
+and Vocos). `_internal/audio_resampling.py` maps the exact native duration to
+the 16 kHz model grid and back with explicit symmetric `(40, 40)` WavLM context
+samples (`RF=400`, `hop=320`) and raw mid/side stereo; non-multiple frame tails
+pad on the right before cropping back to the exact core sample count.
+`resynthesize_conditioned` preconditions the 1.0-1.5 kHz band, runs FocalCodec
+resynthesis, restores complementary zero-phase Butterworth sub-band 35 Hz
+envelopes (`[0.0, 2.5]` gain clamp), and applies a smooth `tanh` soft-knee peak
+ceiling (`min(max(source_peak, 0.25), 0.96)` when `source_peak <= 1.0`) so
+constructive random-phase sub-band summation cannot push lossy MP3/AAC
+reconstruction past the quality gate. The route remains excluded
+from `auto` and enforces the saved-output decoder gate unless explicitly forced.
+
+`_internal/audio_dac.py` implements the separately selected experimental 44.1 kHz
+Descript Audio Codec profile (`descript/dac_44khz@c1bc521685adf9cfe247bc39a5ca58917eda1ac4`,
+MIT weights attributed in `licenses/dac/NOTICE.txt`) using built-in
+`transformers.DacModel` in FP32 on the explicit vocoder device (CPU default;
+`mps` or `cuda` only when available, never a silent fallback; EnCodec takes the
+same device) with SHA-256-verified configuration and
+safetensors, fixed `n_quantizers=3`, rational half-open resampling around the
+44.1 kHz hop-512 grid, raw mid/side stereo decomposition (skipping silent Side
+stems below `1e-5` RMS), stem-level RMS restoration, and `0.999` peak ceiling.
+It preserves full `22.05 kHz` stereo bandwidth without adding lockfile packages,
+runs single-pass resynthesis up to 30 seconds and raised-cosine overlap-window
+streaming (`_stream_neural_track`, shared with `FocalCodec`) on longer audio,
+is selected by `adaptive_auto_profiles` only for a vendor cohort (explicit or from
+pre-strip metadata), and enforces the saved-output decoder gate unless
+explicitly forced. DAC and EnCodec also accept a tagged 5.1 or 7.1 layout:
+`_transform_surround_stems` runs the model on FL/FR, the center, and each
+surround pair as mid/side stems and only low-passes the LFE channel below
+120 Hz (`test_surround_5_1_stem_processing_preserves_channels_and_lowpasses_lfe`);
+BigVGAN, Mimi and FocalCodec stay mono/stereo.
+
+`_internal/audio_snac.py` and `_internal/_snac_network.py` implement the
+separately selected experimental 44.1 kHz Multi-Scale Neural Audio Codec profile
+(`hubertsiuzdak/snac_44khz@873ebef9718b89660340c6f55a2b515e98cfa1d9`, MIT weights
+and adaptation notices in `licenses/snac/`) via a pure-PyTorch lazy builder with
+SHA-256-verified configuration and 286-key checkpoint (`weights_only=True`),
+post-load weight-norm fusion, fixed `n_quantizers=3` (`vq_strides` `8, 4, 2`,
+dropping the finest `stride=1` residual codebook where `Perth` survives), rational
+half-open resampling around the 44.1 kHz hop-3072 grid, raw mid/side stereo and
+`5.1`/`7.1` surround stem routing, and overlap-window streaming on `cpu`, `mps`,
+or `cuda`.
+
+The default `auto` sequence is fixed by requested scheme: spectral then combined
+for AudioSeal and Perth v1, neural then combined for WavMark and both experimental SilentCipher receivers, combined for all. Inspection
+of the source is reused across candidates. Failed intermediate candidates are
+discarded before trying the next profile; only a verified candidate or an
+explicitly forced final candidate can be published. Missing fallback dependencies
+raise without replacing output. Results name the applied profile.
+
+`_internal/perth.py` validates the published package source tree, model config,
+identity file, and sole checkpoint before import. It loads the upstream model
+modules in a private namespace, bypassing the obsolete `pkg_resources` package
+initializer. The read path retains upstream polyphase resampling, magnitude
+processing, clamping, and strict greater-than-one-half presence threshold. Raw
+nonfinite model values remain errors. `audio-perth` supplies the optional stack;
+no old setuptools dependency or global package shim is installed. The research
+facade and benchmark use this shared implementation, and the benchmark hashes
+the runtime module. Fixture embedding retains upstream resampling, including
+its possible short tail; delivered removal still preserves source frame counts.
+
+`_internal/silentcipher.py` pins Sony's 44.1 kHz checkpoint and config before
+weights-only loading. `_silentcipher_network.py` carries the MIT-licensed
+released decoder/STFT; CPU and MPS math parity is retained in the evaluation.
+Training-mode batch normalization follows the public model, calls are locked,
+and construction preserves the CPU random generator. The experimental receiver
+requires three repeated messages, one framing terminator, any valid five-byte
+payload, and symbol agreement at least 0.9. All 205 phase positions are required
+for a negative. Three-second native-rate windows reuse preceding context for a
+short tail. Too-short inputs and invalid model values remain unverified. Device
+failures can retry CPU; numerical failures cannot. Reports record the 44.1 kHz
+decoder clock independently of source geometry, including for 16 kHz sources.
+This route excludes the 16 kHz model, whose SDK byte framing is incompatible;
+see [the artifact analysis](audio-video-removal.md#experimental-silentcipher-44k-receiver).
+
+`_internal/silentcipher16.py` is the separate `silentcipher16` receiver for a terminated
+eight-symbol candidate, with seven ternary payload symbols rather than bytes.
+It pins the released 16 kHz artifacts, uses four decoder classes and a 512-bin
+message band, and shares safe checkpoint loading with the 44.1 kHz receiver.
+The network factory preserves the 44.1 kHz defaults while accepting the 16 kHz
+shape and FFT settings. The candidate requires a single terminator, three
+complete repetitions, agreement at least 0.9, and all 103 phase-grid positions
+for a negative. Silent inputs and invalid model values remain unverified;
+only device failures can retry CPU. `audio.py`, the CLI, and MCP select it
+explicitly or through `all`, using the same `audio-silentcipher` extra. Reports
+record a 16 kHz decoder clock independently of native source geometry.
+Its auto-processing order is neural then combined, with the existing saved-file
+and final-mux gates. SDK byte framing and the general 32-bit profile remain unqualified.
+
+`_internal/audio_quality.py` shares saved-file fidelity, model-free
+`audio_quality_passed` gating (method-aware SNR, clipping-delta, global silent-drop,
+1-second active-window `worst_window_rms_ratio` in `[0.005, 4.0]`, and stereo
+`max_side_mid_drift_db` diagnostics), bounded-memory phase-invariant perceptual
+distances (`AudioPerceptualMetrics` / `compute_perceptual_metrics`: `(512, 128)`,
+`(1024, 256)`, and `(2048, 512)` multi-resolution STFT distance plus 64-band
+log-Mel spectral distance in dB), and source hashing across audio and video.
+`audio.py` splits argument validation (`validate_audio_arguments`) from decoder/backend
+resolution (`resolve_audio_profiles`), separates `allow_unverified`,
+`allow_positive`, and `allow_quality_override` (`force=True` remains a final-attempt
+compatibility alias), populates `AudioProvenanceReport.recommended_recipe` (using
+shared `_internal/c2pa.markers_claim_ai`), routes `adaptive_auto_profiles` by an
+explicit `vendor` (`AUDIO_VENDORS`, validated by `normalize_audio_vendor`) or else
+the pre-strip metadata vendor: Google uses only `dac`/`combined` (just `dac`,
+failing closed rather than falling back to `encodec`, when DAC is absent or the
+layout is neither mono/stereo nor a tagged surround layout); ElevenLabs, Suno,
+Udio, OpenAI, Cartesia and Microsoft use `dac`/`encodec`/`combined`; Meta starts
+with `spectral` and Resemble with `dac` then `spectral`. An explicit vendor also
+asserts the mark is present, so it implies `allow_unverified`, the invisible stage
+of `remove_audio_all` / `remove_audio_batch`, and the audio-invisible stage of
+`remove_video_all` / `remove_video_batch`. It preserves pre-strip vendor
+metadata across intermediate `remove_video_all` container stages, and copies completely clean inputs byte-for-byte in
+`remove_audio_all`. `video_audio.py` processes
+one selected audio track into MKV/MOV with float PCM or MP4 with AAC (target
+192 kbps), stream-copies the other tracks, runs `method="auto"` candidate
+fallback across the final muxed container so an AAC-recompressed relapse on
+`spectral` retries `combined`, and rejects discontinuous decoded audio timestamps. It verifies unchanged per-packet payload hashes and
+PTS/DTS within one output time-base tick (durations allow one source or output
+tick), copied-audio skip-sample/discard-padding side data, stream languages and
+dispositions, exact decoded audio frame count and start offset, then repeats the
+compatible decoder on the actual mux. AAC priming and tail trimming must preserve
+the native decoded count and offset; there is no padding, truncation, or timing
+repair. Final fidelity also uses decoded mux audio, with the final source-SHA256
+immutability assertion evaluated after all staged reads complete.
+Its CLI route is `video audio` (`--stream N` for single-track `remove_video_audio`, or `--all-streams` / `--target-stream N` for multi-track `remove_video_audio_all_streams`), separate from visual processing unless `include_audio_invisible=True` (`--audio-invisible`) is passed to `remove_video_all` or `remove_video_batch` (which inspects `stream_inventory` first so silent videos do not require `scipy`, probes canonical `audio_io.probe_audio` channel layouts with untagged 1/2-channel fallbacks, checks `adaptive_auto_profiles`, returns reusable source `AudioProvenanceReport` readings to avoid duplicate packet scans, wraps `remove_video_all` in an outer `atomic_video_output` transaction across final `get_ai_metadata` verification, and copies completely clean videos byte-for-byte). Post-processing verification across `audio.py` and `video_audio.py` delegates to `audio.verification_outcome`, requiring every source-positive `(scheme, channel, decoder_sample_rate)` check to return `not_detected` on the saved output while distinguishing short-clip window inapplicability from execution failures under `scheme="auto"`. Other stream
+marks and metadata remain outside standalone `video audio`'s verification scope. The packet format is
+FFmpeg's [per-packet hash muxer](https://ffmpeg.org/ffmpeg-formats.html#framemd5).
+
+## Video
+
+[`video.py`](../src/remove_ai_watermarks/video.py) provides the high-level
+video entry point:
+
+- `identify_video`
+- `inspect_video_metadata`
+- `remove_video_all`
+- `remove_video_batch`
+- `remove_video_invisible`
+- `remove_video_metadata`
+- `remove_video_seedance_experimental`
+- `remove_video_visible`
+
+`VideoProvenanceReport.invisible_watermark_hints` derives registered watermark
+labels from C2PA algorithm identifiers or the metadata byte-scan label fallback,
+plus supported SynthID metadata and an Amazon Nova Reel policy inference from
+AI-asserting Bedrock video provenance. Fingerprints stay outside this tuple.
+When the fallback exposes only a label shared by both kinds, it stays out of
+the tuple until an exact watermark algorithm identifier establishes the kind.
+It does not decode pixels or change the existing provenance verdict or removal
+routing. The CLI exposes the tuple as a JSON array and a text hint list, with
+an explicit caveat separating these claims from surviving pixel watermarks.
+`soft_binding`, `soft_binding_algorithm`, and `soft_binding_value` belong to the
+non-AI-asserting C2PA structure: an algorithm name or opaque payload can describe
+a human-created video. Independent AI source types, generator identity, or a
+supported visible mark still contribute their normal provenance signal.
+
+The video API validates both the supported extension and container signature,
+then delegates all metadata detection and stripping to `metadata.py`. It
+requires a separate same-container output, defaulting to `<source>_clean`, so
+the product path does not overwrite an original. The package root exposes all
+functions lazily.
+
+`identify_video` runs the same stable-mark selection helper as
+`remove_video_visible`, so a provenance report cannot authorize a mark that the
+removal path would reject. It reports an empty local result as unknown rather
+than clean. A C2PA manifest alone is not an AI signal: `_video_markers_claim_ai`
+requires what the image path requires, an AI digital source type or disclosure,
+another AI marker (SynthID, TC260, xAI signature), or an AI-generator identity
+(a registered AI signer or an AI product as claim generator). Since YouTube
+re-signs every upload as Google LLC with only `opened` and `transcoded`, the
+earlier any-manifest rule read a re-encoded xAI Grok video as Google AI with
+SynthID (measured 2026-09-24, fixture `youtube-reencode-grok.mp4`); on the
+local video corpus the change also moved an Adobe Premiere Pro export and a
+Claude-provided file from AI to unknown and nothing else. Identification skips the separate per-frame timestamp probe because
+it never encodes frames. `remove_video_all` is the predictable-output
+composition: visible removal plus verified metadata stripping by default, with
+a same-container passthrough when neither signal exists. The lossy invisible
+removal stage is an explicit opt-in through the oracle-certified profile.
+`remove_video_batch` applies those contracts sequentially across a top-level
+directory, returns every per-file failure, and byte-copies visible no-ops so a
+successful output set has no silent holes. An invisible batch loads one VAE
+runtime and reuses it across every compatible file; a failed model load is
+reported per file without retrying the same multi-GB initialization.
+
+Cleanup results separate an action from a watermark verdict. The retained
+`invisible_removed` boolean means only that the visual regeneration stage ran;
+`visual_invisible_action` exposes `not_run` or `regenerated` without implying a
+fresh oracle result (`temporal_stabilize=True` is enabled by default on SynthID VAE regeneration, and `fps=None` / `--keep-fps` preserves native source FPS). `VideoAudioStatus` records `copied_if_present` and
+`unverified` for metadata, visible, invisible, and default all/batch outputs (no extra probe, decode, model, or network call runs), or `processed` with `not_detected`/`detected`/`unverified` when `include_audio_invisible=True` cleans detected audio tracks in `remove_video_all` / `remove_video_batch`. A
+visible no-op or failed batch item with no published output reports
+`stream_action=not_written` instead.
+
+Native MP4/MOV TC260 labels follow TC260-PG-20257A:
+`moov.udta.meta.keys` maps an `AIGC` key to a raw JSON value in `ilst`.
+[`_internal/isobmff.py`](../src/remove_ai_watermarks/_internal/isobmff.py) walks those
+nested boxes by seeking, so detection reaches a tail `moov` without reading the
+preceding `mdat`. The metadata record stores each such value behind its `AIGC`
+key: the bare JSON gave the record's scan parser no anchor, so three Higgsfield
+MP4s with a tail `moov` read as labeled from the file and unknown from their
+record until the key was kept (2026-09-24). Two Doubao iOS variants sit outside that normative placement
+and are covered by the same walker (2026-08-17 corpus findings, both previously
+undetected): a QuickTime-form `meta` box as a *direct* `moov` child (no FullBox
+header, disambiguated by probing the child-box offset), and a QuickTime
+`hdlr=mdir` metadata list under `udta.meta` whose `ilst` data items carry the
+validated JSON with no `keys` box at all (content-validated, so only genuine
+TC260 JSON matches; the keyless entry has no key name to blank, so its value
+alone is spaced out). The MP4/MOV/M4V/M4A removal path first validates the top-level
+box walk, then copies the source to a sibling temporary file in bounded chunks.
+Supported C2PA/JUMBF/AI-label boxes become same-size `free` boxes with blank
+payloads; TC260 removal changes the four-byte key to `free` and blanks only the
+validated JSON value with same-length spaces. Keyed generation metadata such
+as `workflow` and `prompt` uses the same structural walk; removal blanks the
+complete key and value in place. This preserves every box size,
+`stco`/`co64` offset, encoded stream byte apart from the Kling SEI tag below, and
+source-sized memory bound.
+Publication is atomic, and a malformed top-level walk is copied unchanged,
+although `strip_and_verify` refuses such a source before the stripper runs. A
+generic `AIGC` key whose value has no TC260 field is ignored.
+A top-level fragmented-MP4 `emsg` box whose first 256 payload bytes carry
+`urn:c2pa:` (or a JUMBF `c2pa` pair) is a C2PA segment-provenance message:
+`get_ai_metadata` reports it as `c2pa_manifest` and the stripper turns it into a
+same-size `free` box like the others
+(`test_fmp4_c2pa_emsg_detected_and_scrubbed_in_place`).
+
+The in-memory image path (AVIF, HEIF, JPEG-XL and unknown suffixes, through
+`strip_c2pa_boxes`) blanks the same top-level boxes to same-size `free` boxes.
+It used to drop them, which moved `mdat` under an unchanged `iloc`: a phone HEIC
+whose C2PA `uuid` box preceded `mdat` came out undecodable (2026-10-13).
+`tests/test_metadata.py::TestIsobmffStripKeepsOffsets` decodes a cleaned HEIC to
+guard it.
+
+App-export JSON in a keyed or keyless metadata item is blanked the same way.
+Dreamina's MP4 export writes it twice, under `LvMetaInfo` and
+`com.apple.quicktime.artwork`; CapCut (`vicut` / `lv`) writes its export JSON
+under `com.apple.quicktime.artwork` in `moov.meta`, which in non-faststart MOV
+exports sits after `mdat` and is reached through `scan_c2pa_region`'s bounded
+`moov` item walk. The file-level scan read both Dreamina items from the raw head
+bytes while the stripper walked only TC260 and generation keys, so
+`video metadata --remove` exited 1 with both markers still present on the
+tracked Dreamina fixture (found 2026-10-17). Its `UserComment`
+(`{"aigc_label_type":0,"source_info":"dreamina"}`) and `comment` (`vid:...`)
+items carry no marker the scan counts, so they stay.
+
+`test_no_flagged_metadata_value_survives_in_the_output_bytes` strips every
+tracked MP4 fixture and searches the output byte for byte for each flagged
+source value, after the pattern of byte-level leftover checks in public video
+scrubbers. The walk reaches container metadata only. Strings inside the encoded
+streams are out of its reach with one exception: x264 writes its version and
+options as an H.264 SEI message, which is not AI provenance and survives the
+stream copy; only a path that re-encodes the video stream (`video visible`,
+`video invisible`) replaces it.
+
+The exception is Kling's encoder tag. Every Kling video in the tracked fixtures
+and local captures (Kling 2.6, 3.0, 3.0 Omni and O3, through Higgsfield, Runway
+and Kling itself) carries one H.264 `user_data_unregistered` SEI message, payload
+type 5, whose 25-byte payload is UUID `91ca6061-4aee-3854-8614-2d5f73f4ae2e`,
+`kling-ai` and a NUL. `get_ai_metadata` reports it as `kling_sei` from the
+structural SEI scan below (the head-window byte match is only the fallback when
+no video sample table parses), and `identify_video` names Kling from it when no TC260 label does, as on
+`data/fixtures/visible/kling/provider-original.mp4`, which carries no other
+signal. `isobmff.scan_isobmff_video_sei` walks each video track's `stbl` sample
+table (`avc1`/`avc3` `avcC` and `hvc1`/`hev1` `hvcC` length-prefixed NAL units,
+seeking past slice payloads) to parse H.264 (`nal_type == 6`) and HEVC
+(`nal_type in {39, 40}`) `SEI user_data_unregistered` (`payloadType == 5`)
+messages across the entire file without touching audio tracks or non-SEI video
+slices (falling back to a raw `mdat` scan only on bare synthetic or fragmented
+`moof` inputs without `stbl` sample tables). `strip_isobmff_media_file` overwrites those
+exact 24 bytes with spaces in place. The NAL length,
+SEI header and payload size stay, and a run of 0x20 cannot form an
+emulation-prevention sequence, so the message stays well-formed and no decoder
+reads it: `ffmpeg -f framemd5` hashes of every frame match before and after on
+both tracked Kling fixtures (found and fixed 2026-10-17; scoped structurally to
+video `stbl` SEI NALs 2026-11-18). The QuickTime `©cmt` item in
+the Grok fixture (`Signature: <base64>`) also survives, because the xAI
+signature rule requires the UUID half of the pair and that half is absent here.
+
+The same structural walk also collects `ai_sei_spans`: a non-x264
+`user_data_unregistered` message whose UUID is `C2PA_UUID`, or whose body holds
+`urn:c2pa:`, a JUMBF `c2pa` box, or a TC260 `"Label"`/`"ContentProducer"` pair.
+`get_ai_metadata` reports them as `ai_sei`, and
+`strip_isobmff_media_file` overwrites each payload with spaces in place, mapped
+through emulation-prevention bytes and skipped when that mapping would change
+the span length (`test_h264_ai_sei_payload_scrubbed_in_place`).
+
+[`_internal/av1_obu.py`](../src/remove_ai_watermarks/_internal/av1_obu.py) extends
+bitstream-level AI metadata detection and lossless scrubbing to AV1 (`av01` `av1C`
+and `mdat` samples in `_internal/isobmff.py`, plus Matroska/WebM `V_AV1`
+`CodecPrivate` and laced `SimpleBlock`/`Block` frames in `_internal/ebml.py`).
+`is_ai_obu_metadata_payload` reports `ai_obu` for `OBU_METADATA` (`obu_type == 5`)
+carrying C2PA, TC260 `AIGC`, IPTC AI, or Kling payloads (including `ITU-T T.35`
+`metadata_type == 4`) while preserving `METADATA_TYPE_HDR_CLL` (`1`),
+`METADATA_TYPE_HDR_MDCV` (`2`), `METADATA_TYPE_SCALABILITY` (`3`), and
+`METADATA_TYPE_TIMECODE` (`5`). `patch_av1_obu_to_padding` rewrites matching units
+in-place into same-length `OBU_PADDING` (`obu_type == 15`) with valid AV1 trailing
+bits (`0x80`), and `ebml.scrub_ebml_av1_ai_obus` recomputes any parent `Tracks` or
+`Cluster` EBML `CRC-32` (`0xBF`) element in-place.
+
+[`_internal/ebml.py`](../src/remove_ai_watermarks/_internal/ebml.py) provides the
+corresponding bounded Matroska/WebM reader. It seeks over clusters and accepts
+only a `Segment.Tags.Tag.SimpleTag` pairing `TagName=AIGC` with a JSON
+`TagString` carrying a TC260 field. The existing ffmpeg stream-copy path removes
+those container tags without transcoding the encoded streams.
+`c2pa_attachment_payloads` also reads `Attachments.AttachedFile` entries whose
+MIME type is `application/c2pa` or `application/x-c2pa-manifest-store` (each
+bounded by `_MAX_C2PA_ATTACHMENT_BYTES`); `get_ai_metadata` parses them as C2PA,
+and `_strip_with_ffmpeg` drops exactly those attachment streams by the ordinals
+`attachment_ordinals` returns, keeping other attachments and their tags
+(`test_mkv_c2pa_attachment_detected_and_stripped`).
+
+[`_internal/riff.py`](../src/remove_ai_watermarks/_internal/riff.py) and
+[`_internal/flv.py`](../src/remove_ai_watermarks/_internal/flv.py) implement the remaining
+normative TC260 video placements. The RIFF walker reads only AVI
+`LIST/INFO/AIGC` children. The FLV walker skips media tags and parses the AMF0
+`script.onMetaData.AIGC` string. Both require a recognized TC260 JSON field and
+use the verified ffmpeg stream-copy path for removal.
+
+[`video_tools.py`](../src/remove_ai_watermarks/video_tools.py) resolves a complete
+system FFmpeg/ffprobe pair first, then the offline payload installed by `[video]`.
+Base-only installs retain single-system-tool support. Resolution is lazy and
+never mutates `PATH`. Bundle extraction runs in a captured child interpreter so
+upstream progress cannot corrupt CLI JSON or another thread's stdout, and a
+cross-process file lock serializes first use in
+`~/.cache/remove-ai-watermarks/ffmpeg`. Only the child changes the upstream cache
+location, so installed packages can be read-only. The offline payload must be
+installed before the upstream loader can run; base installs never download tools.
+Encoding, probing, Seedance retiming/delivery, and non-ISOBMFF metadata stripping
+all use this resolver. `test_video_tools.py` exercises them with an empty `PATH`.
+
+[`video_encoding.py`](../src/remove_ai_watermarks/video_encoding.py) owns the
+ffmpeg command and pipe lifecycle shared by visible removal and invisible
+regeneration. It centralizes container codecs, optional audio stream copying,
+metadata/chapter policy, encode-failure reporting, and atomic same-directory
+publication. Each mapped stream is allowed to reach its own end, so a copied
+audio tail is not shortened to the frame-input duration.
+Both the raw-BGR and timestamped-NUT stdin modes redirect ffmpeg stderr to a
+temporary file while frames are written. Waiting to read diagnostics until
+after stdin closed allowed stderr backpressure to stop ffmpeg's frame reads,
+which in turn blocked the producer before it could close stdin. The file consumes
+no pipe capacity or RAM while ffmpeg runs; completion reports a bounded head and
+tail when diagnostics are unusually large. Aborts release it even when ffmpeg
+has already exited. A real subprocess regression writes diagnostics beyond pipe
+capacity while streaming frames, checks bounded failure reporting, and the Linux
+full-clip CI job guards the complete path.
+Frame encoding and source-audio copying run as two ffmpeg processes in sequence.
+The streaming encoder has only the frame pipe as input, so input probing or
+demux queues cannot deadlock the producer against a second input. After that
+pipe reaches EOF, a finite stream-copy mux combines the encoded video with the
+source audio and applies the requested metadata/chapter policy. Both stages use
+sibling temporary files, and only the completed mux is published atomically.
+The mux also redirects diagnostics to disk and reports only a bounded head and
+tail. Command regressions assert the single-input encoder and final map targets;
+failure regressions cover bounded mux diagnostics and atomic cleanup.
+`probe_video_encode_profile` reads the first source video stream with ffprobe
+and preserves the supported properties that survive the BGR boundary:
+`yuv420p`/`yuv422p`/`yuv444p` chroma sampling (plus their 10-bit forms in
+`HIGH_BIT_DEPTH_PIXEL_FORMATS`, with `p010le` and big-endian aliases normalized),
+recognized color tags including BT.2020, PQ and HLG, encoder time base, MP4/MOV
+track timescale, source pixel format, and component depth.
+Both raw-CFR and timestamped-NUT inputs use ffmpeg's passthrough FPS mode. This
+keeps one encoded frame per supplied frame when an older ffmpeg receives a
+fine-grained source encoder time base such as `1/90000`; implicit synchronization
+can otherwise synthesize thousands of duplicate frames between CFR timestamps.
+A source in a `HIGH_BIT_DEPTH_PIXEL_FORMATS` format takes a 16-bit path on the
+visible and region-erase encoder: `video_decode` reads `bgr48le` frames from
+ffmpeg, the encoder is fed `bgr48le`, and `_video_codec_args` switches to
+`libx265` (`hvc1` tag in MP4/MOV/M4V, VP9 profile 2 in WebM) carrying the
+primaries, transfer and matrix tags into `-x265-params`; the stationary-matte
+precalibration is skipped on that path
+(`test_10bit_hdr_bt2020_pq_erase_preserves_depth_and_hdr_color_tags`). Any other
+depth above 8 bits or a PQ/HLG transfer (`_HDR_TRANSFERS`) is still rejected
+before encoding, and invisible video regeneration and the Seedance profile
+reject every source above 8 bits or with a PQ/HLG transfer, so no path silently
+reduces it to SDR 8-bit.
+`probe_video_timestamps` reads authoritative per-frame display PTS through
+ffprobe. The CSV reader consumes the first column and ignores appended SEI
+side-data columns; otherwise a valid first row such as `0.000000,` invalidates
+the entire authoritative timeline. Decoder timestamps are only a count-matched fallback when ffprobe is
+unavailable or fails; this avoids decoder anomalies such as one spurious
+negative first-frame timestamp turning a CFR clip into false VFR. A uniform sequence keeps the
+cheap raw-BGR pipe unless the source starts at a non-zero PTS. A variable or
+offset sequence is packetized by the lazy PyAV bridge as rawvideo in an
+in-memory NUT stream with explicit PTS. The resolved FFmpeg reads that stream with
+`-fps_mode passthrough`; `-copyts` additionally retains a non-zero video start
+and the corresponding copied-audio offset. No temporary frame sequence or
+second video encoder is introduced.
+
+[`video_temporal.py`](../src/remove_ai_watermarks/video_temporal.py) owns the
+shared optical-flow maps and temporal residual metric. For a box anchored at
+`IoU >= 0.85` on at least 12 frames, `_precalibrate_stationary_mattes` samples
+up to 36 of them and `estimate_clip_alpha_matte` fits a per-pixel YCrCb alpha
+and composite color (`ClipAlphaMatte`); `unblend_ycbcr_roi` then inverts the
+translucent pixels algebraically and shrinks the mask to the opaque or
+uncalibrated core before any donor or fill step. Mattes need
+`temporal_consistency` and are skipped on the 16-bit path
+(`test_ycbcr_reverse_alpha_unblending_recovers_moving_textured_background`).
+Visible removal then runs a
+bounded `+/- 12`-frame sliding donor window in `encode_clean_video` (none on
+the 16-bit path, which also skips stabilization): before
+calling single-frame `fill()`, `recover_unobscured_background` fits a robust
+local affine motion field on the cycle-consistent unmasked context ring and
+warps genuine unobscured background pixels from nearby frames into the hole,
+shrinking `working_mask` (so moving/intermittent marks such as `sora` recover
+real background texture while hard scene cuts fail the context-ring residual
+gate). When stationary mask pixels remain, `fill()` runs on `working_mask`
+followed by `stabilize_filled_frame`: it works on a
+bounded crop around adjacent masks, backward-warps the prior cleaned frame,
+requires high warped-mask coverage, and gates blending on an unmasked
+source-context ring. Only covered current-mask pixels change. Scene cuts,
+disjoint marks, and poor motion matches therefore retain the independent
+current-frame fill. The same module supplies the motion-compensated metric used
+by the invisible-video sweep, plus constant-memory 3-frame streaming
+`iter_stabilized_regenerated_frames` (`stabilize_regenerated_frames`), which
+blends forward- and backward-warped neighbor frames (`neighbor_weight=0.25`) gated
+on cycle-consistent Farnebäck flow and source motion-compensated residual before
+the single FFmpeg encode when `temporal_stabilize=True`.
+
+[`video_invisible.py`](../src/remove_ai_watermarks/video_invisible.py)
+implements the calibrated video-pixel SynthID-removal engine. It samples frames
+uniformly, resizes to a VAE-aligned geometry, encodes each frame to latent
+space, applies one seeded spatial-noise field across the entire sequence, and
+decodes fresh pixels. Reusing a single noise field avoids independent
+frame-to-frame noise. The shipped path retains only one configured frame batch,
+updates PSNR and temporal residuals incrementally, and streams BGR frames
+directly to the video-only ffmpeg encoder. A separate stream-copy mux then adds
+optional source audio and drops all source metadata. The result is written
+through same-directory temporary files and atomically replaced only after both
+stages succeed.
+
+Encoder latents and decoded pixels must be finite before quantization. Invalid
+VAE values abort regeneration rather than being converted to black or clipped
+frames. The local VideoSeal oracle likewise validates logit type, frame/bit
+shape, and finite values before thresholding; invalid model output is an error,
+not negative watermark evidence.
+
+The engine returns PSNR and a motion-compensated temporal-residual ratio as
+quality measurements. Neither is a watermark detector. The high-level result
+reports completed removal without a separate verification-status flag. The companion
+`scripts/video_synthid_sweep.py` imports the same engine helpers to build a
+matched control and candidate grid, preventing research and shipped
+regeneration paths from drifting.
+
+`scripts/seedance_video_study.py` reuses this engine for local, full-clip
+Seedance experiments alongside matched re-encode and motion-aligned temporal
+controls and explicit codec-compression candidates. An opt-in fixed lowpass64
+arm adds a native-size codec control and destructive spatial filtering without
+loading a model. Its filter definition is shared by the frozen plan and encoder.
+Optional VAE/source mixtures stream aligned frame pairs at native geometry and
+use a separate decoded-pixel codec control. They retain the guide identity,
+reconstruction weight and SSIM implementation in their evidence; returning
+source detail may also return the signal.
+Its optional timestamped
+path reuses the visible pipeline's NUT bridge, restores the decode-order and
+presentation-order ends before and after audio muxing, and verifies delivered
+PTS and video end before accepting fidelity.
+It hashes saved artifacts, snapshots its principal source files, and keeps
+fidelity separate from captured provider evidence. The development-only
+`scripts/capcut_receipts.py` checks selected-file hashes, one-upload/job-poll
+bindings and typed file echoes offline. Assessment reports only the generic
+`capcut_signal_status`; it cannot promote a minimal-detail service result into
+a watermark-family verdict.
+It does not introduce a certified Seedance profile. See
+[Seedance video study](seedance-video-study.md) for the experiment and evidence contracts.
+
+[`video_seedance.py`](../src/remove_ai_watermarks/video_seedance.py) packages
+the `remove_video_seedance_experimental` recipe, also dispatched by
+`remove_video_invisible(profile="seedance-experimental")` and the all/batch
+pipeline's `invisible_profile` selector. All/batch requires explicit invisible
+opt-in, validates profile/tuning combinations before the visible stage, and
+runs visible removal before reconstruction. Batch mode reuses one matching VAE
+runtime. The CLI exposes `--profile` and Seedance `--quality` on all three
+pixel-processing commands; SynthID stays the default. Its
+fixed `seedance-texture-v1` profile reconstructs a 512-grid CRF18 guide with
+the pinned SD VAE and zero noise, restores source high-frequency texture with
+a float64 sigma-1 Gaussian split, and encodes a native-size CRF0 master.
+`quality="delivery"` adds the separately checked H.264 High CRF18 encode;
+`quality="master"` retains the master. The high-level result extends the
+ordinary video-pixel result with explicit experimental/profile/quality fields.
+No provider oracle runs in the installed pipeline.
+
+The experimental engine reuses the timestamped NUT writer and shared encoder
+and mux boundary. `video_encoding.video_end_repair` treats the final decode
+packet and final presentation frame separately, because B-frame reordering can
+put them at different packet indices. It derives both durations from the
+original integer stream window, retains PTS/DTS, and gives the movie edit list
+the video packet clock's precision. Repairs run after the final audio mux as
+well, because remuxing can recalculate the presentation end. Full packet
+lists are read only for an actual repair; source and duration-only probes read
+stream fields. The engine checks the saved output clock and decoded frame count before atomic publication,
+and measures PSNR/flow-aligned temporal residual at delivered geometry. Encoded
+guides and masters are task-owned temporary files, with bounded pixel batches.
+The profile accepts SDR 8-bit MP4 with even dimensions and handles visible
+labels as a separate input-preparation concern.
+
+[`video_wan.py`](../src/remove_ai_watermarks/video_wan.py) packages the optional
+3D causal video diffusion profiles (`wan21-synthid-experimental` at
+`strength=0.38` and `wan21-seedance-experimental` at `strength=0.12` on BF16 NVIDIA CUDA and explicit Apple Silicon `mps`), exposed
+through `remove_video_wan_experimental` and the shared `profile` /
+`invisible_profile` selectors (`VideoWanExperimentalResult`, which carries
+explicit `strength` alongside the compatible `noise_std` mirror). It verifies
+hardware BF16 NVIDIA CUDA capability (`torch.version.hip` excluded,
+`torch.cuda.is_bf16_supported(including_emulation=False)`) or explicit `mps` availability and enforces
+`WAN21_MAX_FRAME_PIXELS` (`1920 * 1080`) and `WAN21_MAX_TOTAL_PIXEL_FRAMES`
+(`7200 * 1920 * 1080`, 5 minutes at 1080p24) before frame decoding, loads pinned
+Apache-2.0 `Wan-AI/Wan2.1-T2V-1.3B-Diffusers@0fad780a534b6463e45facd96134c9f345acfa5b`
+(`licenses/wan/NOTICE.txt`) with an FP32 tiled/sliced `AutoencoderKLWan`, BF16/FP16
+`WanVideoToVideoPipeline`, and `UniPCMultistepScheduler(flow_shift=3.0, 20 steps,
+guidance_scale=1.0)`, pre-encodes `WAN21_DEFAULT_PROMPT` on CPU into cached
+`prompt_embeds` and releases the `9.4 GB` `UMT5-XXL` `text_encoder` / `tokenizer` *before* moving the DiT + VAE onto `cuda`/`mps` (`~3.4 GiB` accelerator footprint),
+and streams `_stream_wan_windows` (`chunk_frames=193` / `overlap_frames=17`
+raised-cosine temporal crossfades with symmetric 16-pixel reflection padding and
+`4k+1` tail-frame causal padding) directly into `_finalize_wan_output` (encoding `crf=18` `delivery` or `crf=0`
+`master` in one pass without an intermediate lossless video file, and caching
+the static neutral prompt embedding on disk via `_wan_prompt_cache_path` so
+`UMT5-XXL` is not downloaded or loaded on warm cache hits)
+without buffering the full decoded video in host RAM. `WAN_SUPPORTED_EXTENSIONS`
+covers `.mp4`, `.mov`, and `.m4v`. `video.py` also exposes
+`profile="auto"`, routing eligible ByteDance/Seedance MP4, MOV, and M4V clips (`WAN21_AUTO_MAX_FRAME_PIXELS = 1920 * 1080`
+and `WAN21_MIN_CUDA_VRAM_BYTES = 8 GiB`, stepping down to `WAN21_COMPACT_CHUNK_FRAMES = 81` on `1080p`, `mps`, or `< 16 GiB` CUDA) to `wan21-seedance-experimental` on BF16 CUDA
+(`seedance-experimental` fallback on CPU/MPS MP4, or `synthid` on MOV/M4V/MKV/WebM or when the auto Wan budget is
+exceeded) and other eligible SDR 8-bit MP4, MOV, and M4V clips to `wan21-synthid-experimental` on BF16 CUDA
+(`synthid` fallback otherwise). The invisible stage of `remove_video_all`
+accepts `_REGENERATED_VIDEO_EXTENSIONS` (MP4, MOV, M4V, `.mkv`, and `.webm`); MKV and WebM
+sources never qualify for Wan, so `auto` resolves them to `synthid`. Coverage in
+`tests/test_video_seedance.py` includes source-detail separation, quantization,
+VFR/nonzero-start/audio-tail preservation, and failure-before-publication.
+
+The engine's `psnr_db` is measured against the already-resized frame and before
+the encoder, so it scores the VAE round trip plus latent noise and cannot see
+the downscale, the decimation, or the codec. No in-loop metric can: the
+candidate frame is captured before it reaches the encoder pipe.
+`scripts/video_fidelity_probe.py` covers the rest by decoding the delivered file
+after muxing, upscaling it back to the source geometry, and scoring it against
+the untouched source frames. It also reports the delivered file's bitrate, so a
+fixed-crf bitrate rise cannot read as unchanged quality; because the mux copies
+source audio verbatim, that figure is a container bitrate, not a video one. The
+probe streams and accumulates the same way the engine does, so its peak memory
+does not grow with clip length. It drives the source through the engine's own
+`_iter_sampled_frames` at the source geometry rather than repeating the
+selection rule: a frame-count check cannot catch a rule that reorders frames
+without changing how many, so the rule itself has to be shared.
+
+`scripts/video_structure_probe.py` adds research-only frame diagnostics without
+resizing or registration: bidirectional edge distances, mutual SIFT displacement
+and coverage, and source-relative flow error on source-selected reliable pixels.
+Missing edges, keypoints, or textured motion evidence remain explicit rather
+than becoming perfect scores. These estimates do not establish semantic object
+tracking or watermark suppression. The protocol and pose-conditioned research
+limits are in [`non-synthid-video.md`](non-synthid-video.md); synthetic translation,
+frozen-motion, and blank-frame regressions are in
+[`test_video_structure_probe.py`](../tests/test_video_structure_probe.py).
+
+`load_video_vae_runtime` pins the default model to
+`DEFAULT_VIDEO_SYNTHID_VAE_REVISION` and requires its safetensors artifact, so a
+moving Hub branch cannot silently replace the calibrated weights or config.
+Explicit custom model identifiers and local paths retain their own loading
+behavior and have no oracle-certified profile. The loader also asserts the
+default model's latent scaling factor against
+`VIDEO_SYNTHID_VAE_SCALING_FACTOR`. The published `sd-vae-ft-mse` config carries no
+`scaling_factor` key, so the value is a `diffusers` class default under an
+upper-unbounded pin, and the certified profile is a perturbation-to-signal ratio
+rather than a bare `noise_std`. A library bump that moved that default would
+otherwise rescale every perturbation with a green suite. The validated factor is
+carried on `VideoVaeRuntime` and passed into encode and decode, so the gated
+value and the applied value are one measurement rather than three independent
+reads. `scripts/video_synthid_sweep.py` loads through the same function: the
+harness that produces the certified rows is the last place that should be exempt
+from the gate. The full-clip oracle floor is
+`noise_std=0.15`: on the public eight-second Veo carrier, `0.10` remained
+detected while `0.15` did not.
+
+[`video_decode.py`](../src/remove_ai_watermarks/video_decode.py) supplies the
+shared capture interface for visible scanning/removal, VAE sampling, and Seedance
+texture reconstruction. OpenCV remains the first choice; when it cannot open a
+stream, PyAV decodes 8-bit BGR frames and retains source geometry, rate, and frame
+PTS. This supports wheels without FFmpeg video I/O, including the checked Intel
+Mac OpenCV wheels. PyAV comes with the `video` extra. Scanners close the capture
+even when a detector fails. Real FFV1 and complete marked-video regressions cover
+pixels, variable timestamps, source preservation, and copied audio.
+
+[`video_visible.py`](../src/remove_ai_watermarks/video_visible.py) implements
+the first pixel stages for Sora, Veo, Dreamina, Seedance, Doubao, Dola, Hailuo AI, Vidu, Wan, and Kling AI. The
+Sora detector searches a normalized frame with fully synthetic
+mascot-and-text and mascot-only silhouettes at several scales. The mascot-only
+candidate must also correlate with the complete grayscale shape, including the
+paired eyes; top-hat edge correlation alone can score a Veo diamond or scene
+texture above the Sora confidence floor. The shape floor is calibrated below
+the independently rendered mascot and above the measured false matches.
+The Veo detector uses separate
+synthetic silhouettes for the current four-point diamond and legacy `Veo`
+text. Seedance uses a synthetic rounded boxed-`AI` silhouette, while Dola uses
+an OpenCV Hershey-font `Dola AI` silhouette. Hailuo AI uses a synthetic waveform,
+MINIMAX/Hailuo AI text, separator, and ring. Vidu uses two outlined capsules
+leaning into a V plus a font-rendered `Vidu AI`, sized from the measured 1080p
+mark (232 x 50 px); its floors (0.52 weak, 0.58 strong) sit between the one real
+clip (0.72 at 480-1080p, 0.60 at 360p) and the maximum over the 956 other local
+videos (0.41), measured 2026-09-24. Dreamina uses a synthetic rounded-box italic
+`AI` silhouette searched in the top-left corner (floors 0.40 weak, 0.45 strong),
+and Wan reuses the image engine's synthetic `wan_alpha.png` logo-and-wordmark asset
+in the bottom-right corner (0.50 weak, 0.56 strong); both use box masks with
+12% padding. Kling AI combines synthetic font
+and capitalization variants with a ring approximation of its swirl. The Dola and
+Kling Hershey renders are frozen PNG assets drawn by OpenCV 4
+(`scripts/render_video_hershey_templates.py`): OpenCV 5 draws the same `putText`
+call smaller and heavier, and with runtime rendering the Dola gallery clip was
+selected as Kling; the logo path rescues
+wordmarks whose version or font differs, while the edge and white-label gates
+reject recurring scene texture. All fixed-mark searches are bounded to the
+mark's expected frame area (the lower frame for every mark except Dreamina's
+top-left badge) and calibrated independently. A strong relocated Veo
+diamond may bypass the known layout anchors, but weak free-corner matches never
+enter the temporal arbiter.
+
+The default `auto` route decodes each frame once, shares its grayscale and
+normalized representations across all detectors, and caches resized synthetic
+template features for the fixed stream geometry. Provider confidence scales
+are not comparable: selection applies each provider's temporal arbiter and
+takes the first stable result in specificity order (`VIDEO_VISIBLE_MARKS`:
+`sora`, `veo`, `dreamina`, `jimeng`, `jimeng_pill`, `seedance`, `doubao`, `dola`,
+`hailuo`, `vidu`, `wan`, `qwen`, `yuanbao`, `baidu`, `runninghub`, `microsoft`,
+`generic_ai_label`, `kling`), co-selecting spatially disjoint vendor-compatible
+marks (such as `jimeng` + `jimeng_pill`) in a single pass and splitting disjoint
+connected mask components (`_split_disjoint_masks`) so optical-flow donor recovery
+and inpainting stay bounded to each local corner ROI. `video_temporal.py` also
+provides `detect_ai_bumper_start` for `--trim-bumper` static end-card trimming and
+`track_video_regions` (pyramidal Lucas-Kanade flow + Sobel/NCC template refinement)
+for `--track` moving overlay removal, while `iter_clean_video_frames` streams
+cleaned BGR frames directly into `remove_video_invisible` without an intermediate
+lossy encode. `vidu` precedes `kling` because the
+Kling detector also scores the Vidu wordmark. An explicit mark uses the same scan path with one
+candidate. Removal also collects authoritative per-frame timestamps for the
+encoder, while identification omits that unused ffprobe pass.
+Cross-matches between providers are settled by the provenance veto below: a
+Sora run on a clip with valid Google AI-video provenance and no Sora provenance
+is vetoed, so a stable Veo run selects Veo. Metadata alone never selects a
+visible mark. A narrower rule that switched to Veo only when the Veo diamond sat
+inside the Sora box, or Veo covered every frame and Sora did not, became
+unreachable once the veto covered every mark and was removed at the 2026-09-26
+merge; its credential rule survives in the veto.
+For metadata-only video identification, a recognized `claim_generator` takes
+precedence over certificate issuer names. Searching all marker values at once
+previously labeled a Google-generated video as OpenAI when both organizations
+appeared in its issuer field. Unknown generators still fall back to the
+existing issuer/marker registry.
+
+Every per-frame result is untrusted. Each provider's floors, minimum-run policy,
+fill padding and mask style are one row in `VISIBLE_MARK_POLICIES`, and every mark
+enters the same `stabilize_localizations` entry point; the recurrence
+implementation underneath knows nothing about providers. That policy row also
+carries `accepts_provenance`, which forces `provenance=False` for Kling AI.
+Hailuo AI accepts an explicit MiniMax TC260 producer, and Vidu the ShengShu
+USCC `91110108MACC4D63XF`. Doubao accepts its
+registry-listed TC260 producer codes, including their structured USCC form;
+an unrelated or absent producer does not confirm Doubao. Provenance can relax a low-contrast run only
+after recurring visual evidence exists. Sora transition frames follow the
+nearest confirmed moving position only with Sora provenance. Seedance, Doubao,
+Dola, Hailuo AI, and Kling AI additionally require candidates to remain anchored to the
+start of a run. This rejects slowly drifting scene details that still have
+high frame-to-frame overlap. Technical encoder tags do not establish provider
+provenance. Hailuo AI confirmation requires its explicit producer marker,
+while Kling AI remains visual-only. Provenance can still veto any video mark
+(`contradicts_video_provenance`): a C2PA manifest that records
+`trainedAlgorithmicMedia` under an issuer outside the mark's own vendor
+(`_VIDEO_MARK_ISSUER_TOKENS`), and for Kling also a TC260 producer outside the
+Kling row's codes (which include the bare `kling` Higgsfield writes). The C2PA
+rule came from a Veo 3.1 Lite clip whose wood texture matched Kling on every
+frame at 0.61, and was widened to every mark after a Gemini Omni 1.1 Flash clip
+from Runway (2026-09-25) matched Sora on a steam wisp at 0.61-0.67 for five
+frames, a stable run above the strict floor. A re-signing platform such as
+YouTube records no source type and vetoes nothing. An invalid credential
+(`c2pa_credential_level`) vetoes nothing, and provenance that also confirms the
+mark's own vendor (`confirms_video_provenance`: a `Sora` claim generator under
+a Google issuer) confirms instead of vetoing. Provenance cannot veto a clip that really is Kling, so the swirl arm of
+`detect_kling_frame` now passes the same `_reaches_kling_edge` test as the
+wordmark arm: on Higgsfield's Cinema Studio v2 (a Kling model, TC260 producer
+`kling`) the swirl matched wood grain at 0.52-0.56 with its box 11% short of the
+right edge, and the run covered every frame. `detect_hailuo_frame` likewise
+rejects a box with under `_HAILUO_MIN_WHITE_FRACTION` bright low-saturation
+pixels: Hailuo 2.3 scored 0.33-0.35 on wood grain, above the real label's 0.31,
+with no white pixel in the box (real label 1.00, synthetic example 0.15).
+`_white_fraction` also requires the bright excursion above the patch median to
+exceed the dark excursion below it, so a light-mode UI card or bottom navigation
+bar with dark text (where the card background supplies >80% white pixels and
+inter-letter gaps correlate with the morphological top-hat template) is rejected
+by both `detect_hailuo_frame` and `detect_kling_frame`.
+Neither gate stopped a Higgsfield Genjutsu clip whose wordmark arm matched wood
+grain at the frame edge (0.22-0.32, white highlights included). Across 1008
+local videos the per-frame Kling score was no discriminator at all: the top
+clip, an OpenArt export, scored 0.81 against the real overlay's 0.63, and 68
+inspected clips between 0.24 and 0.81 showed no Kling mark. What does separate
+them is geometry over time: the real overlay's box is identical on every frame,
+texture matches drift, so the Kling policy tightens `anchor_iou` from 0.80 to
+0.95.
+
+TC260 producer identities live in
+[`_internal/tc260_producers.py`](../src/remove_ai_watermarks/_internal/tc260_producers.py).
+Each `TC260_PRODUCERS` row records measured bare names/USCCs, the normalized
+vendor, image/video mark keys, established image/video platforms, and any pinned
+signing identity/key. Whole-code lookup is casefolded and strips surrounding
+whitespace; structured `001` producer codes resolve through the same USCC
+normalizer, still exported as `metadata.uscc_of`. Substrings cannot identify a
+producer. The table imports neither pixel nor ML dependencies.
+
+`KnownMark.tc260_producer_codes`, visible-video confirmation, video platform
+labels, and `TC260_SIGNING_KEYS` are derived from these rows. The signature path
+still validates the pinned even-y SM2 point. `identify` uses the registered
+vendor for provenance-conflict checks, with a verified pinned signer supplying
+the vendor even when the text lookup yields nothing. Verification under an
+embedded, unpinned key cannot supply this identity. Unknown producers remain
+unattributed and cannot relax a particular mark. Image platforms default to the
+generic TC260 label; a measured row can supply a more specific label (Honor,
+ByteDance Volcano Engine, Tencent Yuanbao, Tencent WorkBuddy, Meitu, vivo,
+Xiaomi, and Agnes AI). The company USCC does not identify a specific app: YOYO
+exports and other product suffixes share it. Vendor attribution is also used for
+conflict checks, and a registered foreign TC260 producer vetoes a visible video
+match for another vendor's mark unless the clip's own vendor is also confirmed.
+Video platforms preserve the established organization labels, including Tongyi
+Yunqi for both Wan and HappyHorse.
+
+`tests/test_tc260_producers.py` covers all registered identities across image,
+video, and mark routing, normalizes code spellings, and checks every neighboring
+producer against the Doubao, Hailuo, and Vidu confirmation gates.
+`tests/test_sm2.py` exercises the real signed label with text lookup disabled,
+then removes the pinned key and requires vendor attribution to disappear.
+The 2026-09-30 migration comparison covered 411 local images and videos with
+identical input hashes: C2PA metadata and complete metadata-only `identify`
+reports were unchanged. This comparison excludes pixel detection, removal,
+GPU paths, and the video identification pipeline; video routing is covered by
+the consumer tests.
+
+Removal runs in a second decode pass. Sora, legacy Veo text, Dola text,
+Seedance, Hailuo AI, and Kling AI use box masks. Seedance deliberately fills the
+complete localized box: a synthetic outline mask passed repeat detection but
+left part of the real translucent border visible during visual end-to-end
+review. Hailuo AI expands beyond the matched core to cover both provider icons.
+Kling AI expands around the wordmark or swirl to include the version and optional
+`PRO` suffix. The square Veo diamond uses a synthetic shape mask so transparent
+corners do not erase unrelated pixels. Every mask goes through the shared
+`watermark_registry.fill` backends. ffmpeg encodes the changed video stream and
+copies optional audio. The default OpenCV fill is the speed floor; structured
+backgrounds need MI-GAN or LaMa for better reconstruction. Invisible video
+stages must continue to reuse the image and metadata implementations rather
+than copying their logic.
+
+Apache-2.0 temporal video inpainting was measured on 2026-09-27 and is not a
+backend: VACE and ROSE had higher masked frame-to-frame error than MI-GAN on
+all three publication-cleared Sora, Veo, and Kling clips. VACE left a gray
+block on Veo, while ROSE visibly reproduced the wordmark and made the Veo
+detector accept 17/17 output frames. The model pins, mask-conditioning audit,
+decoded metrics, H100 cost, and frame review are in the
+[temporal video inpainting evaluation](video-inpainting-research.md).
+
+Regression coverage:
+
+- [`test_video.py`](../tests/test_video.py), including a real ffmpeg full-clip
+  Sora/OpenCV path that generates a synthetic marked MP4 with AAC audio and
+  C2PA provenance, runs both `remove_video_visible` and the composed
+  `remove_video_all` API without mocks, and verifies complete removal, frame
+  count, frame rate, duration, untouched-region PSNR, paired temporal deltas
+  inside the filled region, byte-identical copied audio packets, source stream
+  properties, metadata stripping, and a large-`mdat` metadata case that rejects
+  any full-source `read_bytes()` call. CI installs ffmpeg explicitly for this
+  test so the integration gate cannot silently skip.
+- [`test_video_fidelity_probe.py`](../tests/test_video_fidelity_probe.py), which
+  builds its clips from solid-color frames whose index is recoverable from the
+  pixels, so a decimation that keeps the frame count but shifts the phase scores
+  far worse instead of passing unnoticed. It also asserts that the probe binds the
+  engine's sampler rather than a copy of it, and it holds the suite's only
+  constraint on that sampler's phase. Nothing here needs a model, but it does need
+  ffmpeg, so CI runs this file in the same job that installs it.
+
+## Metadata and provenance
+
+### C2PA
+
+[`_internal/c2pa.py`](../src/remove_ai_watermarks/_internal/c2pa.py) reads C2PA with the
+official `c2pa-python` reader first. Its byte-level PNG parser remains a fallback
+for partial and synthetic fixtures that the official reader rejects.
+
+Each read owns a `Context` with the six EKUs from the SDK's
+[bundled certificate profile](https://github.com/contentauth/c2pa-rs/blob/c2pa-v0.91.0/sdk/src/crypto/cose/valid_eku_oids.cfg).
+This sets permitted certificate purposes, not trusted signer identities. It
+adds neither trust anchors nor a certificate allowlist and leaves signature,
+asset-binding, and certificate verification enabled. The context outlives the
+reader and JSON serialization, then both native resources close.
+
+The 2026-09-30 upgrade from c2pa-python 0.37.10 to 0.38.0 exposed a default-profile
+regression in Rust SDK 0.91.0:
+[`Store::from_context`](https://github.com/contentauth/c2pa-rs/blob/c2pa-v0.91.0/sdk/src/store.rs)
+now calls `ctp.clear()`, which clears EKUs as well as trust anchors, while
+production `Trust::default()` supplies no replacement `trust_config`.
+[SDK 0.90.19](https://github.com/contentauth/c2pa-rs/blob/c2pa-v0.90.19/sdk/src/store.rs)
+kept the bundled profile. This produced `signingCredential.invalid` despite
+valid signatures and asset hashes on `higgsfield-gpt-image.jpg`, the Bing,
+InvisMark, and Paint Microsoft provenance fixtures, and the Microsoft visible
+provider original. Their leaf certificates contain the C2PA/document-signing
+or Microsoft C2PA-signing EKUs that were cleared. Explicit per-reader settings
+restore the previous acceptance policy; the signers remain `untrusted`.
+`test_c2pa_signing_ekus_validate_without_trusting_the_signer` exercises all five
+through the real reader. The negative EKU check uses a neutral image signed by
+the SDK with a local synthetic certificate, fixed validity dates, and no trust
+anchors. Replacing permitted EKUs with an unrelated OID must reject that
+credential while preserving its signature and asset hash; the AI claim then
+loses attribution. Removing the reader context fails the synthetic positive case.
+
+The Bing and Microsoft visible fixtures' leaf certificate expired on
+2026-10-01 at 17:43:59 UTC. The SDK checks expiry before permitted EKUs, so an
+expired original cannot distinguish the negative profile mutation: it returns
+`signingCredential.expired` for both profiles. Keep originals in attribution
+checks and use the generated certificate for that mutation. Expiry does not
+invalidate a signature made inside validity or prove that its asset changed.
+
+The fixed Google image and Photos attribution fixtures assert cryptographic
+signature and asset integrity separately from the overall reader state, which
+can change as their certificates age. Controlled validation tests continue to
+cover trust, expiry, revocation, and the overall state independently.
+
+Microsoft's same fixtures also report `claim.malformed` under the newer SDK.
+Their soft-binding block stores a GUID as a text string, whereas
+[C2PA 2.4, section 18.10](https://spec.c2pa.org/specifications/specifications/2.4/specs/C2PA_Specification.html#soft_binding_assertion)
+requires a CBOR byte string. The newer
+[`SoftBindingBlock`](https://github.com/contentauth/c2pa-rs/blob/c2pa-v0.91.0/sdk/src/assertions/soft_binding.rs)
+uses bytes instead of the older SDK's `String`. Keep this failure in the
+validation codes and retain the raw signed assertion for marker inventory.
+A readable algorithm/GUID declaration does not establish schema validity or
+prove a pixel watermark. This does not bypass credential failures, and the
+asset-binding and signature dimensions remain independent of assertion schema
+validation.
+
+The before/after metadata-only comparison for that upgrade preserved origin,
+platform, confidence, source kind, and all four validation dimensions across
+the retained corpus, with unchanged input hashes. SDK JSON and diagnostic codes
+changed: Microsoft gained the malformed-assertion status, other files gained
+OCSP-skipped or BMFF-exclusion notices, and some existing hash failures were
+reported twice. These diagnostics remain visible; report bytes are not identical.
+The comparison did not exercise pixel detection, removal, or GPU inference.
+
+Structured extraction is limited to the active manifest and the ingredient
+manifests reachable from it. Validation is preserved as separate dimensions:
+asset binding integrity, claim signature, signer trust, and signer certificate
+validity. A matching asset hash and valid claim signature do not make an
+untrusted or expired signer trusted, so those stay separate fields and separate
+caveats -- but they do not lower confidence. `identify` assigns high confidence
+when the asset binding and the claim signature both validate, medium confidence
+to a claim that validated nothing (fallback parsing, unknown dimensions), and no
+origin verdict to a binding failure, a signature failure, or a revoked signing
+credential. The failed claim remains in the marker inventory and keeps the removal
+gate fail-safe because a post-signing container edit can invalidate C2PA without
+removing a declared pixel watermark.
+
+Revocation reaches the disqualifying branch through `signer_validity`, not through
+binding or signature. A check that read only the latter two returned a confident AI
+verdict off a credential the issuer had disowned, with an empty `integrity_clashes`
+-- quieter than a hash mismatch on the same file. Certificate expiry is deliberately
+not disqualifying: an expired certificate does not imply the signed bytes changed,
+and a signature actually made outside validity already arrives as
+`claimSignature.outsideValidity`.
+
+One rule, one place. `_validation_fields` maps status codes to the four dimensions
+and also emits `c2pa_failed_codes`, the subset of failures that actually drove a
+dimension to invalid; `c2pa_info_has_invalid_credential` maps those dimensions to
+disqualified, and both the ingredient-reachability walk and the report consume that
+single path. The displayed reason comes from `c2pa_failed_codes` rather than a
+substring rescan of the full code list, so what a caller is shown as the cause
+cannot become a looser rule than the verdict it explains.
+
+The structured walk also treats an exact known AI product in a reachable
+`claim_generator` as an AI assertion. This covers update chains where the active
+manifest names only `c2pa-tool` while a validated ingredient names Dreamina, and
+Firefly chains that identify `Adobe_Firefly` without repeating a digital source
+type. For Adobe partner-model actions (`com.adobe.type: "remoteProvider.3rdParty"`),
+`_structured_manifest_fields` also reads `parameters["com.adobe.digitalSourceType"]`
+alongside top-level `action["digitalSourceType"]` while keeping SynthID vendor
+inference strictly scoped to signer and claim-generator `identity_strings` so a
+parameter-only third-party model name (`gemini-flash`) does not fabricate vendor
+provenance. Unreachable manifests remain excluded.
+
+The fallback soft-binding scan checks literal identifier presence before its
+ASCII token-boundary regex. This avoids running every registry regex on files
+without algorithm names and preserves exact matching, including rejection of
+prefixes and version suffixes. Tests pin boundaries for every generated registry
+entry and assert that an identifier-free buffer runs no regex searches.
+
+Reachable `c2pa.soft-binding*` assertions retain their exact `alg` and bounded,
+printable block `value` in addition to the normalized vendor label. A block value
+without its algorithm is not surfaced because it cannot be attributed to a
+decoder or registry entry. The labels and watermark/fingerprint classification
+come from the generated `_internal/_generated_c2pa_soft_bindings.py` snapshot of
+the official C2PA registry. Refresh it with
+`uv run python scripts/sync_c2pa_soft_bindings.py`; the command validates the
+upstream schema invariants, records the exact source revision and writes a
+deterministic module. Runtime inspection remains offline, and registry membership
+is name-only evidence rather than proof that a compatible decoder ships.
+`--check`, run by `maintain.sh` and the CI lint job ahead of Ruff, compares the
+snapshot with the live upstream revision, so an upstream registry commit fails
+lint on `main` and on every pull request until the snapshot is refreshed, and the
+Ruff step behind it does not run until then.
+The GitHub API revision lookup sends `GITHUB_TOKEN` (or `GH_TOKEN`) when set,
+because the unauthenticated 60 requests/hour per IP limit is exhausted on
+shared CI runners; `.env.example` documents the variable.
+
+`com.microsoft.invismark.1` uses its block value as the
+pixel-watermark identifier in Microsoft Paint output. An InvisMark soft binding
+keeps the invisible-removal gate fail-safe even when the C2PA asset binding has
+since become invalid, because metadata damage does not prove the pixel carrier
+disappeared. `identify` retains the generic `soft_binding` signal for schema-1
+compatibility and adds `invismark` as the stable pixel-removal signal across
+the reader, portable-record, and raw-byte fallback paths. When the C2PA manifest
+is structurally usable, `invismark` also asserts AI provenance and sets the
+`"Microsoft (Copilot / Designer)"` fallback platform; in integrity-clash checks
+it shares `_C2PA_MANIFEST_SOURCE` with `c2pa` and `soft_binding` so multi-actor
+Microsoft + OpenAI manifests do not self-clash. `vendor_for_strength` includes
+non-reader fallback containers carrying `com.microsoft.invismark.1` when
+selecting the `"microsoft"` floor.
+Registry entries of type `fingerprint` remain durable-provenance signals but are
+not added to the watermark inventory, do not trigger pixel regeneration, and do
+not suppress independently established SynthID watermark evidence. A registered
+watermark or an unknown soft-binding algorithm keeps that inference fail-safe,
+and `c2pa_info_has_removal_hint` plus `identify.report_has_removal_hint` keep
+`c2pa_identity_ai` and fallback `invismark`/`soft_binding` signals fail-safe for
+invisible removal even when the C2PA signature or hard binding is invalid.
+
+The local Paint reader treats C2PA as corroboration, not as the pixel detector.
+It extracts 4-by-4 blocks from the luminance Haar LL plane, reads the largest
+singular-value residue of the 15 DCT AC coefficients, and votes over the repeating
+12-by-12 map. A payload is actionable only when every bit has at least three
+supporting carriers and the `0x4c` prefix and GUID checksum validate. A caller can
+also require the decoded Windows-order GUID to equal the one in pristine C2PA.
+Direct disruption moves each confirmed carrier to the opposite residue center,
+encodes to a temporary file, and re-runs the reader before atomically publishing
+it. Any missing or ambiguous
+condition returns no detection so a caller can retain its existing fallback. The
+implementation contains no Microsoft binary, PDB data, or extracted writer-quality
+forest.
+
+The SDK default enables trust verification but supplies no production trust
+anchors. Consequently, an installation without an explicitly maintained C2PA
+trust bundle reports every otherwise valid signer chain as untrusted --
+`signingCredential.trusted` appears in no default installation, from any vendor.
+Confidence therefore must not depend on it. It did from 0.27.0 through 0.30.0, which made
+the high-confidence branch unreachable in production while a hand-built fixture
+stamping `signingCredential.trusted` kept it green in the suite; measured on the
+committed provenance fixtures, every C2PA file from OpenAI, Adobe and Black Forest
+Labs came back untrusted, and an intact manifest scored the same medium as a
+fallback parse that validated nothing. That collapsed the one distinction the
+official reader exists to draw.
+`tests/test_identify.py::TestIdentifyRealSamples::test_no_committed_fixture_reports_a_trusted_signer`
+is the reachability guard: it asserts the fixtures really are untrusted and still
+reach high confidence.
+
+Read `untrusted` here as a missing input, not a finding: nothing was checked,
+because there was nothing to check against. If a maintained trust bundle is ever
+configured, that stops being true and the confidence mapping in
+`c2pa_credential_level` (in `_internal/c2pa.py`) must be re-read, because only then does a failed trust
+check mean the signer was rejected. Shipping or fetching an official trust bundle
+requires a separate update, provenance, and availability policy; do not silently
+convert `signingCredential.untrusted` into trusted based on a vendor-name match.
+
+Vendor attribution comes from the registry in
+[`_internal/constants.py`](../src/remove_ai_watermarks/_internal/constants.py). Derived
+issuer and platform maps should not be maintained separately.
+A recognized product in `claim_generator` takes precedence over the certificate
+issuer: an application can sign through an upstream model provider without
+becoming that provider's product. Exact products are also useful provenance on a
+non-AI edit, such as CapCut; recognizing the product does not itself change the AI
+verdict. An unknown claim generator falls back to issuer attribution. An unmapped
+issuer org reads as unknown-signer C2PA with no platform; that is how Ideogram was
+surfaced (4 private-corpus files signed "Ideogram, Inc", 2026-08-08) before its
+vendor row was added on 2026-08-27.
+
+### Metadata scanning and stripping
+
+[`metadata.py`](../src/remove_ai_watermarks/metadata.py) contains the shared
+metadata scanners and `remove_ai_metadata`.
+
+Key contracts:
+
+- `scan_head` is the shared cached input for bounded byte scans. It fills the buffer
+  in two layers. Structural readers first, one per container, each seeking past the
+  pixel payload to reach metadata placed beyond the window: `isobmff.scan_c2pa_region`,
+  `_png_late_metadata`, `_riff_late_metadata`. A decoder-backed fallback last,
+  `_decoder_visible_text`, for metadata the raw bytes do not spell at all — a
+  zlib-compressed PNG `zTXt` packet is readable only after inflation. Compressed
+  text is inspected even when the whole file fits within the head window. The layers are
+  ordered that way because the structural readers work on files no decoder can open.
+- A C2PA reader failure is logged at warning, not debug. It returns the same `None` as
+  a file with no manifest, so nothing downstream can distinguish "no credentials" from
+  "the credentials could not be read", and the second silently downgrades a verdict.
+- JPEG stripping walks metadata segments and preserves the entropy-coded image
+  scan.
+- Exact app-export JSON disclosures in EXIF `ImageDescription` or `UserComment`
+  and in ISOBMFF `moov` metadata items share one parser. Known AI-product
+  provenance is removable without by itself asserting that the pixels were
+  generated; explicit `aigc_info` discriminator values, Dreamina
+  `exportType=generation`, and CapCut (`vicut` / `lv`) AI generation or
+  voice-clone flags (`is_use_voice_clone`, `is_use_ai_video_generation`,
+  `is_use_ai_image_generation`, `is_use_aimusic_bgm`, `is_use_aimusic_vocal`,
+  `is_ai_lyric`, `is_aimusic_mv`, `is_use_jichuang_mode_in_ai_writer`) do assert
+  AI origin. Ordinary Aweme, retouch, and `vicut` / `lv` editor exports without
+  an active AI flag (including desktop CapCut / Jianying exports where
+  `is_use_vc_sing_clone` is hardcoded to `1`) are preserved.
+- EXIF reads fall back to Pillow's decoded `getexif()` mapping when a container
+  exposes no ordinary `info["exif"]` blob. This covers ImageMagick PNG raw EXIF
+  profiles and keeps portable-record identification aligned with the file path.
+- Structured `generationParams.modelName` JSON is reduced to its recognized
+  model name before attribution, so prompts and the surrounding JSON never
+  become a platform label.
+- Native audio creation comments use `_internal/audio_creation.py`: exact
+  `made with suno[ studio]; created=<ISO timestamp>[; id=<UUID>]` declarations
+  become the unsigned `audio_generator` field. Non-Studio declarations require
+  a canonical UUID. Dates and complete tag boundaries are validated; incidental
+  mentions and text inside sample payloads are not signals. A bounded ffprobe
+  read requires an audio stream and excludes actual video streams, while allowing
+  attached covers. Missing ffprobe leaves this optional field unavailable. Cache
+  identity includes path, modification time, size, and executable.
+- Native ISOBMFF audio creation comments are blanked only inside their metadata
+  values, preserving file length and stream offsets. Other audio containers use
+  the existing stream-copy stripper. This removes declarations, not waveform
+  watermarks or recoverable external fingerprints.
+- ISOBMFF containers use
+  [`_internal/isobmff.py`](../src/remove_ai_watermarks/_internal/isobmff.py).
+- Native MP4/MOV TC260 `AIGC` entries are read from
+  `moov.udta.meta.keys/ilst` and blanked without changing box sizes.
+- TC260 `SecurityData` signatures are checked by
+  [`_internal/tc260_signature.py`](../src/remove_ai_watermarks/_internal/tc260_signature.py)
+  on top of a verification-only SM3/SM2 in
+  [`_internal/sm2.py`](../src/remove_ai_watermarks/_internal/sm2.py), because no
+  dependency provides the SM2 curve. The label message is the guide's appendix
+  A.1 string (`"Label":"1","ContentProducer":"...","ProduceID":"..."`) under the
+  default SM2 user ID, and MiniMax's `LabelMataData` spelling is accepted beside
+  the guide's `Md`. Only the label signature is checked: MiniMax's binding
+  signature also verifies, but no verdict reads it. The guide's appendix A.2
+  defines `DFT` for non-JPEG/PNG files as all bytes except the metadata label;
+  MiniMax names no `CntSel`, and measured whole-file, direct DFT byte-range,
+  metadata-box, and media-payload interpretations do not reproduce its content
+  hash. The key travels in the file, so
+  only a key pinned in `TC260_PRODUCERS` (the source of `TC260_SIGNING_KEYS`)
+  names a signer, and a pinned signer
+  is checked with the pinned point whatever parity the file claims; an unpinned
+  key that verifies proves integrity only and adds no signal. Both reserved
+  fields preserve nested objects as JSON. Honor YOYO uses `PubSd`, RSA/SHA-256
+  and `TBSData.Type=Content` with a null binding hash and no content selection;
+  Tencent Yuanbao writes a raw 64-byte hex SM2 `(r || s)` signature, the only
+  form `sm2.verify` accepts (no DER decoding), with `PubKey: ""` and `Cert: ""`. Both forms are recognized and reported as
+  unsupported rather than failed, with no integrity or signer-trust claim.
+  Only the producer slot is checked; Honor's repeated propagator slot adds no
+  independent verification. Verifications
+  are memoized, since `get_ai_metadata` and the verdict check the same label.
+  `tests/test_sm2.py` pins the GB/T 32905 SM3 vectors, OpenSSL's SM2 verify
+  vectors, and the real MiniMax signatures. Over 411 local images and videos the
+  only verdict-record change was the added marker on the nine MiniMax videos.
+- Native MP4/MOV `workflow` and `prompt` entries use that keyed metadata-list
+  reader and the same offset-preserving removal path.
+- Native MKV/WebM TC260 `AIGC` entries are read from
+  `Segment.Tags.Tag.SimpleTag` and removed through the ffmpeg stream-copy path.
+- Native AVI and FLV TC260 entries are read from `LIST/INFO/AIGC` and
+  `script.onMetaData.AIGC`, respectively, then removed through ffmpeg stream
+  copying.
+- Supported non-ISOBMFF audio and video containers use ffmpeg stream copying
+  with explicit `-map 0` to preserve every input stream. A same-directory
+  temporary output is published atomically, including for in-place removal.
+- `keep_standard=False` removes EXIF (including GPS) and ICC profiles rather
+  than restoring them through the Pillow save arguments.
+- The low-level remover is fail-safe and can copy an undecodable file through
+  unchanged.
+- A caller that reports success must use `strip_and_verify`, which scans the
+  written output for surviving markers. If the metadata-preserving decoder
+  rejected the container but `image_io` can still decode its raster,
+  `strip_and_verify` normalizes that raster and scans again. A truly undecodable
+  file raises `ValueError` before anything is written.
+
+Detection and removal must stay in parity. A new marker is incomplete until the
+scanner can find it, the remover can reach every supported placement, and a
+test proves that it no longer appears in the output.
+
+Regression coverage:
+
+- [`test_metadata.py`](../tests/test_metadata.py)
+- [`test_metadata_internals.py`](../tests/test_metadata_internals.py)
+- [`test_security_clamp.py`](../tests/test_security_clamp.py)
+
+### Provenance report
+
+[`identify.py`](../src/remove_ai_watermarks/identify.py) separates file-backed
+metadata extraction from verdict logic:
+
+- `extract_provenance_evidence` reads the supported metadata signals into
+  `ProvenanceEvidence`.
+- `evidence_from_metadata_record` normalizes an externally collected nested
+  metadata record into the same evidence type without file access. Versioned native
+  records accept only source-derived fields; filenames, hashes, timings, errors,
+  prior verdicts, and pixel results cannot become evidence. Unknown native schema
+  versions and other record types are rejected.
+- The vendor registries are matched over `_metadata_region(head)`, not the whole scan
+  buffer: they see the container's metadata and not its coded pixels. The tokens are
+  raw substrings and the shortest are four and five bytes, so over a megabyte of
+  compressed data one turns up by chance, and the entry it hits may assert AI. The
+  trim happens only when the container parses -- a malformed or unknown one is left
+  whole, because dropping real evidence to avoid a chance match is the wrong trade.
+  When the reader could not open the manifest, the issuer and signer scan narrows
+  further to the manifest store the container locates (`_c2pa_store_bytes`: JPEG
+  APP11, PNG `caBX`): an XMP packet names Adobe in its toolkit string, and a vivo
+  X300 capture was labeled "C2PA signer: Adobe" from it (2026-09-26).
+- Registry tokens are matched two ways, by what the text is. Decoded manifest
+  strings (signer, claim generator, software agent, and the video metadata
+  markers) use `registry_word_matches`: the token must stand as a whole word, so
+  `Canva` no longer matches `Nova Canvas`. Raw bytes cannot use that rule. Over
+  every C2PA file in the local corpus (1,379 files, 2026-09-26), 374 of 37,325
+  token matches in the manifest store had a letter or digit beside them, nearly all
+  of it framing: a CBOR text header before the token (`iMicrosoft`, 0x69 = length
+  9) or a DER tag after it (`OpenAI1`, `Sora0`). The only continuation that named
+  the wrong vendor was `Canva|s`; `Adobe|Product` sat in an Adobe manifest. So raw
+  bytes decide nothing once the reader has decoded the manifest: not the signer
+  (an unregistered one stays unknown, where the byte scan had read the Amazon
+  Bedrock image as Canva), not a signer-platform token, not the AI-tool fallback
+  for the generator, not a raw `claim_generator` CBOR value, not a soft-binding
+  identifier, and not the SynthID vendor inference, in `identify` and in
+  `metadata.synthid_source` alike; the verdict reads SynthID from the decoded
+  C2PA info when the metadata dict lacks it. Claim-generator tokens also match as whole
+  words (`claim_generator_platform`: `suno` no longer matches `Sunoco`), and so do
+  the C2PA vendor needles the video path reads (`c2pa_vendor_platform`). The byte scans remain only for
+  manifests the reader cannot open (1 of the 1,379), and verdicts over all 1,379
+  were unchanged by the rule. Device tokens (`NIKON`, `Pixel Camera`, `sony.sig`)
+  exist only in raw bytes, so they stay a byte scan, but of the manifest store:
+  the same word as an EXIF Make beside an unrelated AI manifest is not a verified
+  capture. The source-kind scan is left on the whole buffer on purpose, because it
+  also reads IPTC `digitalSourceType` in XMP, a signal outside C2PA. The byte
+  fallback's `c2pa.ai-disclosure` kind now uses the structured path's rule
+  (`_disclosure_kind`): `human_validated` beside `prompt_guided` is a generation.
+- `identify_from_evidence` evaluates that evidence without reopening the source. Rules
+  that decide a verdict live here, not in extraction: extraction has two
+  implementations, and a rule in only one of them is a rule the other lacks. The
+  SynthID provenance evidence is the worked example — its structured form comes from the manifest,
+  and the byte-scan fallback for containers no parser reaches runs in the verdict, so
+  both extractors reach the same answer. It did not, and the record path silently
+  reported no SynthID for images the file path flagged.
+- `identify` preserves the path-based API and adds the optional registered
+  visible-mark and open invisible-watermark detectors after extraction.
+- The Google Photos SynthID caveat distinguishes the measured cohort from a
+  pixel verdict on the current file. Four earlier edits were oracle-positive
+  (2026-09-25); a large eraser and a restyle were positive while two small edits
+  were indeterminate (2026-10-01 UTC). Their C2PA shape does not distinguish
+  these outcomes. See [the Photos measurements](synthid.md) for the inference's
+  limits; the CLI does not call the provider verifier.
+- When the pixel stack is absent, the visible arm still no-ops (that is the
+  historical `get_or_none` contract), but the report now carries a caveat saying
+  the detectors did NOT run. Without it, an install lacking the `visible` extra
+  dropped `Visible Gemini sparkle` from a marked image and read exactly like a
+  clean scan -- a silent false negative in metadata-only installations. The caveat names WHICH silence happened: an ImportError on a build
+  `pixels_available()` calls incomplete is the absent extra, and anything else is
+  a file that could not be decoded. The two need different fixes, so naming the
+  wrong one sends the user to reinstall a working install.
+
+### SynthID periodic carrier detector (research only)
+
+The local lattice expert is not part of the public package. Runtime code lives
+in [`scripts/synthid_runtime/`](../scripts/synthid_runtime/) and the campaign
+log is [`synthid-detector-research.md`](synthid-detector-research.md). The
+notes below are the calibration history of that research expert.
+
+[`synthid_detector.py`](../scripts/synthid_runtime/synthid_detector.py) is the
+runtime form of the frozen 2048x2048 periodic-tile experiment. It folds a
+Gaussian high-pass residual modulo 16x16 within a calibrated pixel-count range
+and compares the normalized RGB tile with the bundled float64 template
+`scripts/synthid_runtime/synthid_periodic_tile_2048_v1.npz`. Exact multiples use the original
+reshape-and-mean path; other sizes use count-correct modulo folding,
+without resize. Channels are filtered and folded sequentially, and partial edge
+blocks are accumulated without a full-frame padding buffer so the 18-megapixel
+ceiling does not require multiple three-channel float workspaces. The model hash
+is pinned by a test, and the unchanged operating threshold is
+`0.17357069773071196` through 10 megapixels.
+
+That fixed threshold is not production-qualified. A later source-fresh
+Open Images test-split challenge produced 5 crossings among the 211 images in
+its supported geometry. A precision-first `0.28` replacement is frozen as a
+research candidate after retaining all 12 available source-diverse native
+positives and rejecting those five crossings. It then failed the second
+untouched holdout at 1/213, with score `0.322542963`. The replacement is
+rejected and fixed-v2 remains an explicit diagnostic only.
+
+The direct API returns `detected`, `indeterminate`, or `unsupported`. Passing
+`register_scale=False` selects fixed-v2 from 1,000,000 through 10,000,000
+decoded pixels as an explicit diagnostic. Its frozen threshold accepted
+none of 5,000 public COCO views balanced across every observed target geometry,
+and none of a separate 5,000-view challenge over 256 generated geometries
+covering every pair of modulo-16 edge remainders. The original 2048x2048
+verdicts and exact scores remain unchanged. Runtime matches do not attribute a
+provider. `identify` adds only positive matches as high-confidence
+evidence and never turns a local negative into a clean verdict.
+The result envelope also names the signal family, provider scope, backend,
+whether metadata contributed to the verdict, whether pixels were preserved,
+and an explicit reason for unsupported or indeterminate results. These fields
+are shared with the development OpenAI oracle's JSON boundary.
+
+The production router selects `synthid-periodic-tile-large-v1` above 10 through 18
+megapixels when both dimensions are at least 2,048 pixels. It evaluates all
+phase-aligned 2,048-square windows and combines the minimum fixed-template,
+Red-minus-Green, and Blue-minus-Yellow spatial correlations with the most
+negative Blue-minus-Yellow mid-band correlation. The 3072x5504 portrait
+geometry also applies a Green mid-band alias veto. Each component is normalized
+to its frozen gate and the public threshold is `1.0`.
+
+All 37 inferred large candidates cross the rule, and all seven metadata-free,
+pixel-identical candidates checked by the official Gemini verifier were
+detected. The constants rejected all 17,417 exposed external controls. A
+post-freeze production-path challenge then rejected all 2,637 decoded-pixel-
+unique controls drawn from 2,000 COCO images excluded from the earlier large
+color-phase challenge and 637 deduplicated Picsum controls. Four large
+geometries and four resampling kernels were balanced; the maximum score was
+`0.0592777965`. The source collections were not freshly acquired, so this is a
+feature-unseen holdout rather than a fresh-source estimate.
+
+A separate post-freeze Open Images download yielded 41 completed,
+decoded-pixel-unique controls after excluding incomplete `.aria2` files and all
+prior Open Images hashes. The frozen production path accepted 0/41 and reached
+a maximum score of `0.4083013324`. This source-fresh audit is too small to
+replace the main holdout interval but checks the acquisition boundary.
+
+The same seven official positives were then re-encoded at unchanged dimensions.
+JPEG-95 and JPEG-90 each reduced detection from 7/7 native files to 0/7. The
+large operating point is therefore native-pixel and lossless-copy support, not
+a codec-robust claim.
+
+Arbitrary geometry is not the same as arbitrary spatial resampling. On a
+stratified 80-image fixed-positive sample, one-step resizes at seven nonidentity
+scales from 0.5 through 1.5 reduced the unchanged 16x16 detector from 80 accepted
+sources to zero at every scale. Restoring the original geometry recovered 58-80
+sources, showing that the carrier period scaled with the pixels. A discovery
+bank that scaled the template to integer periods 8, 10, 12, 14, 18, 20, and 24
+was promising: a threshold frozen above 3,000 resized COCO controls accepted no
+view in a 2,000-control final partition and accepted 672 of 800 source-disjoint
+provider positives. It also stayed below threshold on the tracked OpenAI and
+Adobe controls. The branch remains research-only because noninteger periods at
+scales 0.8, 0.9, 1.1, 1.2, and 1.333 collapsed, while separate per-period
+thresholds accepted five final controls. The runtime therefore keeps only the
+fixed 16-pixel lattice.
+
+A follow-up fractional-period probe sampled the 30 strongest template harmonics
+over a continuous 7.5-24.5 period range. The correct period appeared within
+0.05 pixels among the top three candidates for 58 of 60 transformed positives.
+Testing nine neighboring reconstructed geometries then recovered 44 of 60 at
+the native threshold, compared with an upper bound of 48 when the true source
+geometry was supplied. The complete search still failed its small frozen
+control split: a threshold above 250 development controls accepted two of 150
+final controls. Multiplying the canonical score by spectral-period confidence
+also accepted two. That baseline was rejected rather than shipped at its
+discovery threshold.
+
+The research-only
+[`synthid_affine_lattice_probe.py`](../scripts/synthid_affine_lattice_probe.py)
+adds split-confirm synchronization. It estimates complex harmonic coherence on
+one checkerboard of patches, confirms the selected period on the other, and
+reports amplitude-aware confirmation, a locally content-whitened multichannel
+code match, and phase-preserving and cyclically registered template scores. A
+0.1-pixel grid recovered the expected
+12.8, 14.4, 17.6, and 19.2 periods in 20/20 transformed views from five official
+positive parents. A provisional conjunction accepted none of 800 corresponding
+views from 200 oracle-negative parents, none of 469 OpenAI-labeled rows, and
+three of 276 broad non-Google rows whose TC260 or Samsung provenance prevents
+treating them as clean oracle negatives. This probe is not runtime routing:
+positive diversity is still inadequate, period 8 remains rejected, and the
+amplitude stage currently handles isotropic scale at zero rotation only. Full
+protocol and caveats are in the detector research plan.
+
+The whitened match uses neighboring noncarrier bins to estimate complex
+Green/opponent-color covariance around every selected harmonic. It corrected a
+period-24 alias on one native official positive, giving the broad native search
+the correct period 16 on all five ordinary-size positives. It was retained only
+as a candidate reranker: its positive-to-negative margin was smaller than the
+existing spatial-template margin in both the native pilot and a locked 0.8
+resize challenge. Two of the three TC260/Samsung-provenance challenge crossings
+also matched the full whitened code more strongly than the weakest official
+large positive, so the pixel result identifies a compatible signal family, not
+a provider.
+
+The same probe also exposes a payload-agnostic H5 confirmation. It estimates a
+complex harmonic vector independently on the two checkerboards and measures
+their fixed relative-phase inner product; the codeword need not match the known
+template. Free cyclic-shift selection was rejected because natural phase aliases
+overlapped the controls. The fixed all-harmonic statistic separated five native
+official positives from 130 controls with margin `0.1619`, and five 0.8-resized
+views from 200 fresh-parent controls with margin `0.1541`; all seven large
+official positives also passed the observed gap. It remains research-only
+because these tests supplied the period, reuse one negative source family, and
+contain only 12 independent positive parents.
+
+The separate research-only
+[`synthid_cyclostationary_probe.py`](../scripts/synthid_cyclostationary_probe.py)
+measures full complex cross-channel spectral correlation at carrier shifts
+against neighboring-shift same-image nulls. It recognizes synthetic amplitude
+modulation and rejects both independent noise and a purely additive carrier.
+The real native pilot overlapped completely: five official-positive joint
+contrasts ranged from `-0.0027` to `0.0337`, while 130 controls reached `0.0593`.
+The cyclostationary branch is rejected rather than tuned on new frequency bands.
+
+The affine-lattice research CLI also supports symmetric in-memory JPEG and
+top-left crop challenges. At fixed native period 16, codec-specific
+phase-preserving template thresholds retained all five repeated positive views
+and accepted none of 80 locked controls at JPEG qualities 95, 90, and 80. The
+locked margins declined from `0.1054` to `0.0257`; whitened and unknown-codeword
+scores were rejected for lossy JPEG. A separate registered crop conjunction
+retained all five views and accepted none of 80 controls after both 5% and 10%
+top-left crops, with registered-template margins above `0.22`. These are
+research pilots, not runtime experts: the period was supplied, positive parents
+were reused, and only one codec implementation and one negative family were
+tested.
+
+The `register_scale=True` path is the calibrated ordinary-size production
+expert. It
+keeps the harmonic search, adds three-level scale-space consistency and quadrant
+agreement. Its calibrated decision requires the canonical winner to be the
+strongest spectral-period candidate, its three-way amplitude to cross the
+threshold for that period bin, and both independent high-frequency template
+bands to correlate by at least `0.075`. The public registered score is the
+minimum normalized margin across those gates, so its decision threshold is
+`1.0`.
+
+The earlier single-threshold version produced 68 false positives among 11,273
+symmetrically downscaled private-corpus controls. A top-candidate plus period-bin version
+removed those but still produced 6 false positives among 1,000 source-independent
+Open Images controls. The high-band gate removed them and then accepted none of
+499 previously untouched Open Images reserve controls. The resulting rule
+retained 229 of 355 source-disjoint transformed positives: 0/65 at scale 0.5 and
+229/290 from scale 0.65 through 1.5. The explicit period-8 rescue is rejected
+because resize lattices fully overlap its positive distribution.
+
+A subsequently frozen 1,000-image Open Images reserve accepted zero in
+registered mode. The fixed expert supported only 81 of those geometries and
+accepted seven, so fixed and registered results cannot safely be unioned. In
+overlapping geometry the registered decision remains the validated path;
+fixed-only evidence is a diagnostic rather than a universal-cascade positive.
+
+A later source-fresh 3,000-image Open Images test-split challenge superseded the
+registered-v2 precision claim: it accepted 4 of 2,997 supported controls. The
+registered-v3 confirmation uses disjoint patch groups for phase, cyclic
+amplitude, and held-out-codeword evidence. It rejected all four crossings,
+retained 147 of 148 base-accepted source-diverse positives, and retained all 359
+base-accepted views in a dense 0.65-1.50 transform matrix over 12 independent
+parents. Frozen unchanged, it then accepted 0/2,996 controls from a second
+nonoverlapping Open Images cohort and 0/2,366 supported controls from a
+3,000-image COCO second-family challenge. Registered-v3 is now the default
+ordinary-size positive route. The exact gates, acquisition hashes, and rejected
+weak-signal rescue are recorded in the detector research plan.
+
+Every one of those control rates is photographic. Against 223 corpus images
+whose C2PA names a non-Google generator, the unchanged entry point accepted 29
+(`0.130`, Adobe Firefly `0.241`, highest foreign score `3.01`), all from
+registered-v3. The branch reads a lattice shared across generation pipelines,
+which is why it must not be reported as a watermark. The public `identify`
+path no longer calls this expert.
+
+The branch is also phase-locked to the image origin, exactly like the large
+expert. A two-pixel diagonal crop killed all 28 in-geometry foreign detections
+and all 8 detected Google provenance positives (maximum remaining scores
+`0.779` and `0.311` against the `1.0` threshold); the signal recovers only at
+offsets that are multiples of four. Registered-v3 therefore detects the same
+crop-destroyed generation-pipeline lattice as `large-v1`, on ordinary sizes.
+
+When registered-v3 abstains, opponent-registered-v1 searches the same frozen
+template in Red-minus-Green and Blue-minus-Yellow space. It reranks three
+separated scale candidates with fixed RGB and two spatial opponent-color gates,
+then accepts only periods 7.9-12.0 on 1-10 megapixel rasters whose sides are at
+least 768 pixels. Period-8 candidates additionally require Red-Green and
+Blue-Yellow 8-pixel edge ratios no greater than `1.05`; this vetoes the
+deterministic JPEG block lattice without using container metadata. The final
+rule recovered 49/49 lossless 0.5x-0.75x views from seven official-positive
+parents. It rejected all 1,790 measured period-8 codec crossings, while 350
+identically resized controls had no base crossing and the earlier period-band
+rule accepted 0/1,000 post-freeze Picsum controls. Period 12.8 remains excluded,
+and lossy JPEG/WebP views remain inconclusive.
+
+The runtime precedence is registered-v3, the bounded opponent fallback, then
+large-v1 above 10 megapixels. Passing `register_scale=False` selects the legacy
+fixed diagnostic explicitly. The research bank in
+`scripts/synthid_routed_expert_bank.py` preserves five explicit expert
+identities for audits: fixed, registered-v3, large, opponent-registered-v1,
+and opponent-fine-registered-v1. An inactive fallback is unsupported, not a
+new independent score: two runtime calls populate the five slots. Schema-2
+exports retain the actual routed identity; legacy schema-1 registered
+observations must be rescored, and conformal calibration must match the new
+expert set. Each expert uses
+its own threshold, including 1.05 for the fine fallback.
+Neither runtime nor research routing returns a clean-image verdict.
+
+An unchanged registered challenge from 10 to 18 megapixels retained only 1 of
+37 Google candidates and zero of 89 non-Google controls. Twenty-eight positives
+cleared amplitude, 21 had matching spatial and spectral periods, but only three
+cleared high-band agreement. The 10-megapixel ceiling therefore remains.
+Phase-aligned 2,048-square fixed windows did not provide a fallback: median
+consensus retained 36 positives and accepted 10 controls, while all-window
+consensus retained 36 and accepted eight.
+One frozen full-frame pre-resize to eight megapixels also retained only the same
+1 of 37 positives and zero controls; just three positives cleared high-band
+agreement. Large images therefore cannot be routed through a canonical-size
+registered fallback; the later native opponent-color branch is separate.
+The remaining phase-aligned window variants closed this branch: a single center
+2,048-square registered window retained 1 of 37 positives and zero of 89
+controls, while accepting any phase-aligned 2,048-square window retained 2 of
+37 and zero controls. The latter control maximum was already 0.968 against the
+1.0 decision threshold. Neither the coverage nor the exposed specificity
+margin supports a registered-window expert; these results do not apply to the
+later native opponent-color branch.
+
+A separate half-scale patch-consensus branch initially looked promising. Its
+64-pixel, 90th-percentile patch statistic retained 33 of 49 validation positives
+and zero of 166 controls, then 27 of 52 locked-test positives and zero of 140
+controls. The frozen broad challenge rejected it: 61 of 10,906 symmetrically
+half-scaled private-corpus controls and 22 of 1,000 independent Open Images controls
+crossed the unchanged threshold. A post-challenge Green negative-phase spread
+gate removed those errors but retained only 2 of 234 later Google rows and zero
+of 689 later controls. Half-scale support therefore remains explicitly absent.
+
+An independent reproduction of the public `aloshdenny/reverse-SynthID` V4
+cross-color codebook did not provide another expert. Its best-of-two-model phase
+rule retained 141 of 355 positives but accepted 191 of 499 controls and 386 of
+a fresh 1,000-control reserve; AUC was 0.517. The repository's stricter
+aspect-ratio routing reduced coverage but preserved the same approximately 38%
+positive and control acceptance within supported rows. Its older V3 phase score
+had AUC 0.473, and two prespecified amplitude-aware V4 rerankings reached only
+0.521 and 0.524 AUC. These external rules are research baselines only. Their useful
+contribution is the solid-reference phase-consensus construction, not either
+published single-image threshold. Full methodology and the DALL-E reference-set
+confound are recorded in the detector research plan.
+A later exact repeat on the hash-disjoint v7 challenge confirmed the same
+failure: the published cut accepted 77/200 Google and 76/200 OpenAI, so it did
+not separate the two target providers.
+A direct exact-1024 reproduction of the same V4 artifact confirmed rather than
+rescued that verdict: the union of its two published profiles accepted 177 of
+443 Google rows and 60 of 162 controls. The artifact's floor left only about two
+active bins in the inspected profile/channel, explaining why its score acts
+as a weak generic phase-coherence test rather than a specific codebook match.
+
+An exact-1086x1448 OpenAI follow-up also rejected the solid-reference transfer.
+A low-texture 256-bin phase codebook achieved native and JPEG-95 test AUCs of
+0.512, and independent train halves shared only two exact bins. The paper's
+content-dependent alternative was tested with 60 OKLab masking-alignment
+features. Its native/JPEG minimum reached test AUC 0.593 and 15/562 positives
+versus 1/228 controls at the frozen boundary, but deterministic half-fits shared
+no positive decision and had coefficient cosine 0.148. Neither branch is a
+runtime OpenAI expert.
+
+An exact-1254 assertion-contrast search selected an sRGB period-8 Blue-channel
+direction at 45 of 259 validation asserted rows and zero of 16 same- or
+other-provider validation rows. It failed its locked specificity check at 39 of
+233 asserted rows and one of 18 controls. Across the complete exact-geometry
+audit it accepted 185 of 992 asserted rows, one of 55 same-provider rows without
+an assertion, and one of 13 other-provider rows. Raising the threshold above
+the wider controls reduced recall to a small minority, so this branch remains
+research-only.
+
+Three attempted veto or missing-codeword rescues also failed. The official
+InvisMark decoder checkpoint passed its own embedded-watermark self-test at
+0.997 confidence and 0.97 bit accuracy, but all OpenAI and provider-control
+cohorts clustered around 0.18 confidence with no useful separation. DTCWT
+modulus before periodic folding retained 5 of 158 locked-test OpenAI rows and
+zero of 135 controls, then zero of 40 fresh OpenAI rows. A 16-codeword whitened
+period-8 model retained 5 of 158 and zero controls, then 1 of 40 fresh OpenAI
+rows and 1 of 50 fresh controls. They neither explain the known oracle-positive
+miss nor justify runtime routing.
+
+An image-level patch-bag model over nine normalized high-pass patches was the
+strongest later local OpenAI classifier. It accepted 324/1,364 development-test
+OpenAI rows with 4/3,373 heterogeneous controls, then transferred to 120/486
+OpenAI rows, 8/504 general controls, and 5/33 same-provider non-assertion rows
+in the later temporal challenge. Assertion enrichment over the same-provider
+stratum was not independently significant (`p = 0.151`, one-sided exact test).
+JPEG-95 reduced the unchanged conjunction to
+1/486 positives and zero controls. The native temporal hits were complementary
+to the signed period-8 hits, but the same-provider rate and codec collapse
+identify another export noiseprint rather than a runtime SynthID expert.
+
+The separate OpenAI period-8 DTCWT component is persistent rather than tied to
+one short rollout: exact-generator asserted hits were 3/16, 46/365, and 26/200
+from May through July, with 75/581 overall versus 1/52 same-generator rows
+without an assertion. Its native/JPEG minimum score reached 0.721 AUC between
+those indeterminate strata. Sorting all 64 cyclic correlation scores removed
+absolute phase but also removed locked-test discrimination at 0/158 positives
+and 0/135 controls. This remains research evidence for a weak signed carrier,
+not a runtime OpenAI detector.
+
+A four-family open-proxy challenge also failed to justify a generic neural
+watermark expert. A fixed residual frontend and cross-family residual mixing
+were trained on three of TrustMark P, VideoSeal, DWT-DCT, and WAM while the
+fourth encoder and its test sources remained unseen. Held-out AUCs ranged from
+0.437 to 0.562. Equal-power phase-scrambled hard negatives prevented simple
+spectral-energy shortcuts, but did not produce architecture transfer. A
+separate translation-invariant Gemini bicoherence search selected none of 20
+development positives and finished at 0/50 positives, 0/199 controls, and AUC
+0.374. Neither branch is part of runtime routing; full split and oracle details
+are in the detector research plan.
+
+The separately measured registered geometry range remains 250,000 through
+10,000,000 decoded pixels with both sides at least 256 pixels. The default path
+in the development-only research runtime uses registered-v3, then the narrower opponent-registered-v1
+fallback in its 1-10 megapixel domain, and large-v1 above 10 megapixels. A
+20-image real-corpus drift check was byte-identical after the earlier v2 integration.
+The calibration history and caveats are in the linked detector research plan.
+The separate `scripts/synthid_affine_lattice_probe.py` now emits schema 14
+with `period_selection="selection-only-whitened-amplitude-v1"`. Period
+selection cannot read confirmation patches; schema 13 and earlier multi-period
+probe results need rerunning and recalibration. This does not change the
+frozen runtime detector's independent implementation or thresholds. Learned
+folds may include partial edge tiles when both raster dimensions support at
+least one full tile. A residual-correlation comparison requires compatible
+geometry; a mismatch is an error rather than measured attenuation.
+External `not_detected` controls require either the matching target verifier
+or an explicit independent `evidence_reference`.
+
+### Development OpenAI SynthID oracle
+
+[`openai_provenance.py`](../src/remove_ai_watermarks/openai_provenance.py)
+provides a development-only remote oracle. It is absent from the installed CLI
+and top-level Python API, and `identify` never imports it. Development
+dependencies include the optional OpenAI SDK.
+
+The backend accepts only PNG, JPEG, and WebP. It computes a decoded RGBA pixel
+fingerprint, removes AI provenance metadata into a temporary file through
+`metadata.strip_and_verify`, recomputes the fingerprint, and aborts before any
+request if metadata survived, the format changed, the pixels changed, or the
+sanitized file exceeds the endpoint's 50 MiB limit. It then sends exactly one
+multipart file to `content_provenance_checks.create` and parses exactly one
+`type == "synthid"` result. The independent C2PA entry is never returned or
+used as fallback evidence. Missing, duplicate, or unknown SynthID outcomes are
+errors rather than negative detections.
+
+The default SDK client has a 120-second request timeout, zero automatic retries,
+and an HTTP transport with `trust_env=False`, so process proxy variables cannot
+reroute it. A caller may provide one explicit API key without mutating the process
+environment. One upload acknowledgement therefore authorizes at most one media
+transmission rather than inheriting the SDK's retry default. Request logs keep the
+endpoint, temporary basename, media type, byte count, timeout, retry policy,
+duration, HTTP status, error code, and request id when available, but omit the
+source path, image bytes, credentials, and decoded-pixel fingerprint.
+
+The internal `OpenAIProvenanceError` preserves the status, API error code, request id,
+`Retry-After` value, and a transient-only `retryable` flag. The library does not
+automatically act on that flag: an explicit caller invocation is required for
+every additional upload. Transport and schema failures remain errors rather
+than becoming `not_detected` or a local detector result.
+
+The development result remains provider-scoped and positive-evidence-only. `not_detected`
+does not mean human-created, and the official endpoint's published prohibition
+on repeated reverse-engineering or evasion queries prevents using this backend
+as an adaptive training or removal oracle.
+
+### Portable metadata record
+
+[`metadata_record.py`](../src/remove_ai_watermarks/metadata_record.py) produces the
+record `evidence_from_metadata_record` consumes, so collection and verdict can run
+on different machines. Its contract is equality with the file path, and the three
+defects found while establishing that equality are the reason each rule exists:
+
+- It walks the file's RAW head, never the `scan_head` buffer. That buffer is the
+  head concatenated with late metadata payloads, so a structural walk runs off the
+  end of the real head and parses appended bytes as chunks, inflating the record and
+  creating false signals.
+- Samsung Galaxy AI splits its evidence: the `PhotoEditor_Re_Edit_Data` marker sits
+  in the post-EOI trailer while the `genAIType` value it is gated on can sit inside
+  the entropy-coded scan. A marked file therefore keeps the whole tail window, not
+  just the trailer.
+- PIL's info keys are emitted in the file path's own candidate order
+  (`Software`, `Source`, `Title`, `Description`, then EXIF). `generator_from_metadata`
+  returns the FIRST candidate carrying a known token, so preserving candidate order
+  is part of verdict equivalence.
+
+The transport is independently versioned as `provenance_metadata` schema 1. Native
+records require the exact integer schema version and a `complete` status. Source
+or head-read failures produce `error`; later region, trailer, decoder, or C2PA
+read failures retain collected evidence with `partial` and stage-specific
+`issues`. Neither incomplete status can be judged as a complete scan. WebP walks the full
+declared RIFF container by seeking over `VP8`, `VP8L`, `ALPH`, and `ANMF`, so late
+XMP/C2PA remains visible without shipping coded frames or parsing appended trailer
+bytes as chunks.
+
+Pixel forensics are deliberately absent: the provenance path does not read them.
+Verdict equivalence is checked over tracked fixtures and a separate local evaluation
+corpus.
+
+### Broad forensic metadata
+
+[`forensic_metadata.py`](../src/remove_ai_watermarks/forensic_metadata.py) owns the
+wide metadata-only inspection record: hashes and timestamps, full EXIF/IPTC, C2PA,
+container inventories, bounded binary metadata, and embedded-thumbnail forensics.
+It is a separate `forensic_metadata` record type and is deliberately rejected by the
+provenance normalizer. Integration code publishes the strict
+`ProvenanceReport.to_dict()` alongside it rather than letting operational fields or
+derived results influence detection.
+
+### Source-pipeline classifier
+
+[`source_classify.py`](../src/remove_ai_watermarks/source_classify.py) provides
+the opt-in 10-provider source-pipeline and synthetic-image classifier
+(`classify_source`, `resolve_weights_path`, and CLI command `classify-source`).
+By default it downloads `config.json` (for Hub download telemetry) and
+`multi-provider-source-v8.npz`
+(`allow_pickle=False`, verified by SHA-256 from `wiltodelta/raiw-source-classify`
+or overridden via `RAIW_SOURCE_CLASSIFY_WEIGHTS`), while supporting pickle-free
+runtime loading across five `.npz` bundle schemas:
+
+- `multi-provider-source-v8` (`512-d` + embedded residual-adapted
+  `ViT-S/16 @ 384` `59-d` multi-layer + ArcFace + spatial weight-fp16 ONNX,
+  pinned default schema used by `multi-provider-source-v8.npz`,
+  `_SourceModelV8`): extends the embedded MIT `ViT-S/16 @ 384` ONNX graph
+  (`vit_onnx_bytes`) with a zero-initialized parallel residual token adapter
+  preserving the generalist `orig_syn` logit (`vit_out[0]`), a multi-layer `RINE`
+  intermediate token gate (`blocks.5/9/11`), an
+  L2-normalized `24-d` Sub-Center ArcFace embedding (`[15:39]`) plus `10`
+  per-provider prototype cosine similarities (`[39:49]`), a `24x24`
+  `SpatialPatchHead` (`top-12/48/144` graphics-masked synthetic means, LSE,
+  contrast, boundary TV, `non_gfx_frac`, `photo_region_syn`), and
+  `AIDE`-style smooth vs high-frequency patch pools (`[57:59]`,
+  `VIT_OUT_DIM_V8 = 59`). Inside `classify_source()`, `_eval_v5_core_state` runs
+  once per image, an anchored `106-d` `LayerNorm` + `SiLU` skip fusion head
+  (`_classify_v8_with_vit`) combines the `59-d` visual/spatial/prototype readout
+  with `512-d` physics/regime channels and born-digital graphics suppression,
+  and `preprocess_vit_384_native_2chw` extracts two unresampled `1:1`
+  modulo-16-aligned `384x384` native-pitch crops under a dual trigger
+  (`_NativeTileConfigV8`: Trigger A for photo-bearing binary gray zones resilient
+  to partial UI chrome, and Trigger B for zero-FPR attribution recovery on
+  already-detected synthetic images). A `195-d` dual-view open-set head
+  (`_MMProvHeadV8`) and optional per-provider multimodal Stage-2 heads
+  (`_MMStage2HeadV8` with low-margin `version_subfamily=None` abstention)
+  resolve provider and version subfamilies.
+- `multi-provider-source-v7` (`512-d` + embedded `ViT-S/16 @ 384` weight-fp16
+  ONNX, legacy schema used by `multi-provider-source-v7.npz`,
+  `_SourceModelV7`): embeds the frozen MIT `ViT-S/16 @ 384` visual stem plus
+  trained multi-task readout heads as a lazy header-loaded weight-fp16 ONNX graph
+  (`vit_onnx_bytes` stored inside the pickle-free `.npz`, outputting `28-d`
+  `[orig_syn(0), prov_10(1:11), foreign_ai(11), real_non_ai(12), gfx_veto(13), dom_syn(14), emb(15:28)]`
+  on CPU via `onnxruntime` with `OMP_NUM_THREADS`-aware session threading)
+  alongside the `512-d` `_SourceModelV5` backbone. Inside `classify_source()`, a
+  `67-d` open-world `LayerNorm` + `SiLU` skip fusion head (`_classify_v7_with_vit`)
+  combines the ViT logits and `13-d` bottleneck, bounded `512-d` Stage-1.5
+  channels, positive/negative global physics features, the `26-d` codec-invariant
+  born-digital graphics score, and the `32-d` regime block to predict calibrated
+  `synthetic_detected` and `synthetic_probability` (`>= 0.5` monotonically
+  whenever `label != "unknown"`). A conditional two-scale `672px` 2-crop pass
+  (`_MultiScaleGrayConfigV7`, `preprocess_vit_384_detail_2chw`) runs only on
+  non-graphics gray-zone images (`>= 512x640`, `eff_phys_excess < 0`,
+  `ms_gray_lo <= syn_margin < 0`) to recover widescreen native exports without
+  penalizing median CPU latency. For provider attribution, an `82-d -> 64-d -> 12`
+  open-set multimodal head (`_MMProvHeadV7`) scores our 10 providers against
+  `logsumexp(foreign_ai, real_non_ai)`: transcoded images from our 10 providers
+  that clear per-provider `prov_thresholds` and `min_gap` recover exact `label`,
+  while unseen external generators (`foreign_ai`) and heavily laundered images
+  honestly abstain with `label="unknown"` (including suppressing moderate `512-d`
+  `eff_phys_excess < 2.2` triggers when `max(mm_log_odds) < -0.80`).
+  Feature-only calls (`classify_source_features` without `vit_features`) evaluate
+  the `512-d` branch directly.
+- `multi-provider-source-v5` (`512-d`, legacy schema used by `multi-provider-source-v6.npz` and `multi-provider-source-v5.npz`, `_SourceModelV5`): reuses
+  the 512-dimensional
+  physics-grounded descriptor in
+  [`_internal/source_features_v4.py`](../src/remove_ai_watermarks/_internal/source_features_v4.py)
+  and decouples supported-AI acceptance from 10-way provider attribution in pure
+  NumPy: 12-output Regime-FiLM residual MLP trunks (`10` provider logits +
+  `unknown` + dedicated `b_accept` head) paired with packed binary
+  `HistGradientBoosting` specialists, unknown-centered robust channel scaling
+  `(u - u_med) / u_scale`, 2D concordance/veto/pairwise gates, an 11-channel
+  acceptance detector standardized by a 2-layer heteroscedastic skip regime null
+  (`null_h_w`, `null_lin_mu_w`, `null_lin_sig_w` with aligned `[-8.0, 8.0]`
+  clipping), a threshold-invariant `LayerNorm` + `SiLU` skip attribution head,
+  joint posterior confidence calibration (`sigmoid(min(conf_scale * accept_excess, max(0.0, top1 - top2)))`
+  when `accept_excess >= 0`, preserving `confidence >= 0.5 <=> label != "unknown"`),
+  and Stage-2 version heads blending packed `HistGradientBoosting` trees with
+  regularized linear logits (`hgb_weight`).
+- `multi-provider-source-v4` (`512-d`, legacy schema supported via explicit
+  `weights_path` / `RAIW_SOURCE_CLASSIFY_WEIGHTS`): extracts the 512-dimensional
+  physics-grounded descriptor in
+  [`_internal/source_features_v4.py`](../src/remove_ai_watermarks/_internal/source_features_v4.py)
+  (multi-scale SRM residuals, phase-invariant modulo-8/16 sublattice & DCT grid
+  physics, phase-free radial/azimuthal/resampling spectra, CFA/PRNU/kurtosis
+  sensor physics, and a 32-dimensional codec/geometry regime block) and scores a
+  two-tower ensemble in pure NumPy: Regime-FiLM `LayerNorm` + `SiLU` residual
+  MLP trunks (`_ResidualMLPTrunk`) paired with packed `HistGradientBoosting`
+  specialists, 2D multiplicative interaction gates, smooth regime-conditioned
+  null standardization `(z_raw - mu(r)) / sigma(r)`, per-provider cross-AI
+  damping $\gamma_c$, and stacked Stage-2 `HistGradientBoosting` version heads.
+- `multi-provider-source-v3` (`956-d`, legacy schema supported via explicit
+  `weights_path` / `RAIW_SOURCE_CLASSIFY_WEIGHTS`): combines the 124-dimensional
+  patch descriptor in
+  [`_internal/forensic_124d.py`](../src/remove_ai_watermarks/_internal/forensic_124d.py)
+  with the 768-dimensional phase-free spectrum in
+  [`_internal/source_spectral.py`](../src/remove_ai_watermarks/_internal/source_spectral.py),
+  expands the 892-d vector to 956-d with 64 cross-channel chroma, radial-slope,
+  Nyquist-grid, and azimuthal-anisotropy features, and scores 10 global provider
+  units and their subfamily sub-units with positive-part zero-inflation sub-unit
+  pooling (`alpha * (s - base_offset)` only when `s > base_offset`), a Stage-1.5
+  hinge meta-router (`router_meta_tau`, `router_meta_w`), damped cross-AI
+  margins ($\gamma = 0.60$), and stacked Stage-2 `HistGradientBoosting` version
+  heads.
+
+The `source-classify` extra adds `pixels`, Hugging Face Hub, and ONNX Runtime
+(CPU, no Torch or Transformers). `SourceClassification` exposes both 10-provider
+attribution (`label`, `version_subfamily`, `confidence`) and calibrated binary
+synthetic detection (`synthetic_detected`, `synthetic_probability`), always sets
+`watermark_truth="unknown"`, and is never imported by `identify`. Unit and
+mutation tests live in `tests/test_source_classify.py` and
+`tests/test_source_features_v4.py`; evaluation and attack limits live in
+[`source-classify-hf/README.md`](source-classify-hf/README.md) and
+[`synthid-classifiers.md`](synthid-classifiers.md).
+
+### Pixel forensics
+
+[`pixel_evidence.py`](../src/remove_ai_watermarks/pixel_evidence.py) measures six
+families of scale-robust pixel statistics (block-DCT histograms and Benford
+deviation, FFT band energies and CFA peaks, high-pass residual, error level,
+gradient, color) in a single decode, sharing the intermediate maps between them.
+
+It remains independent of verdict and removal. `PixelEvidence.to_dict()` is the
+versioned service boundary: it omits the local path, exposes complete/partial/error
+status, keeps exception details in logs, and can include opt-in per-stage timings.
+
+The provenance metadata collector, broad forensic collector, provenance report,
+and pixel report all accept an explicit output `schema_version`. Package releases
+may add an output schema while retaining older serializers, so a rolling consumer
+can keep requesting the version it already understands. Within one schema, changes
+are additive; existing fields, types, meanings, signal names, and watermark labels
+remain stable. Unsupported selections raise before a different shape is returned.
+
+`artifacts=True` additionally returns the spatial layer: a perceptual hash, a 128px
+JPEG thumbnail, and coarse ELA, residual and phase maps. Those identify the source
+image rather than describe it, which is why they are opt-in and a separate field: a
+caller storing them is handling image content, not statistics about it.
+
+The DWT-DCT detector and the visible-mark stage share a single decode of the
+source, held by
+a per-call `_SharedDecode`. It exposes two accessors because the two arms need
+opposite failure handling: the visible arm swallows a decode failure (no cv2, no
+visible marks, metadata verdict untouched), while the invisible arm re-raises it
+so `has_invisible_target` reaches its documented fail-safe `True`. Swallowing it
+there would skip a diffusion scrub on a file that used to get one. TrustMark
+deliberately keeps its own Pillow decode: cv2 and Pillow disagree on EXIF
+orientation and on 16-bit PNG, so substituting one for the other is not
+behavior-preserving.
+
+The metadata probes (`aigc_label`, `xai_signature`, `iptc_ai_system`,
+`huggingface_job`, `samsung_genai`) and `extract_c2pa_info` are memoized on
+`(path, mtime_ns, size)`. One `identify` reaches each of them twice, and each
+re-walks the container or re-runs the manifest reader. Size is in the key as well
+as mtime because this package rewrites files in place, and an in-place rewrite
+can land inside one mtime tick. The C2PA key additionally carries the
+reader-availability flag: with the official reader the manifest comes back as a
+store and without it from the PNG chunk parser, so the answer depends on process
+state and not on the file alone.
+
+Native-container TC260 readers (`isobmff`, `ebml`, `riff`, `flv`) all run, in that
+order, on every file. Each self-gates on its own magic bytes after a 4-12 byte
+read, so gating the AVI and FLV ones on the file extension as well was redundant
+and made a correctly formatted container served under the wrong name invisible.
+WebP is the one input class the now-unconditional RIFF reader newly touches; its
+`AVI ` form check is what rejects it.
+
+`api._SourceEvidence` extracts that metadata once per `remove_all` call and serves
+both the visible pass (which vendor is confirmed) and the scrub gate (is there an
+invisible target). It is per-call, never module-level: `batch` may write its
+output over its input, and a holder that outlived one call would answer the scrub
+gate from pre-write evidence. In `batch` each stage builds its own holder after
+any write that precedes it, for the same reason. Every accessor fails safe the way
+the function it replaces does — no provenance means no relaxation, and an unknown
+invisible target means scrub rather than skip.
+
+The `detect` extra composes the shared `pixels` runtime with PyWavelets. Its
+in-tree [`dwt_dct.py`](../src/remove_ai_watermarks/dwt_dct.py) decoder reproduces
+the upstream algorithm's output bit for bit without installing Torch or
+non-headless OpenCV; the block scan is vectorized rather than transcribed, so
+the file no longer reads line by line against `maxDct.py`. The upstream MIT
+notice ships inside the wheel under `licenses/`.
+
+`is_ai_generated` is `True` or `None`; absence of evidence is not reported as a
+human-made verdict. `ai_source_kind` distinguishes fully generated content from
+AI-enhanced composites when the source metadata provides that distinction.
+
+TrustMark is reported as a watermark signal but does not by itself assert AI
+origin because it can also protect human-authored content. The decoder requests
+binary mode, matching Adobe's Durable Content Credentials example, then requires
+the same payload and schema after a quality-95 JPEG round-trip. Uncorroborated
+`identify` scans run Variant P only and accept schemas 0-2; when C2PA soft
+bindings declare `com.adobe.trustmark.Q` or `com.adobe.trustmark.C`, `identify`
+also checks that declared variant under the same re-encode and schema 0-2 gate.
+Direct API callers can pass `variant="P" | "Q" | "C"` to `detect_trustmark`,
+`detect_trustmark_image`, `detect_trustmark_detailed`, and `remove_trustmark`.
+Schema 3 is below the precision threshold: all
+38 measured historical false-positive candidates used it, and six retained the
+same false payload after re-encoding. The official Adobe Variant P schema-1
+fixture in `data/fixtures/provenance/` is the positive regression control.
+
+An independent benchmark supports gating beyond a valid codeword. Kazempourradi
+et al. ([arXiv:2610.04151](https://arxiv.org/abs/2610.04151), section 4.4)
+found that the blind detectors of TrustMark B, C, P and Q in BCH_5 mode reported
+a valid codeword on at least one of four decodes for 5.9% (P) to 15.3% (C) of 85
+unmarked images, and on 3 of 8 images in a 16-bit HDR subset. Testing the same
+decodes against the expected payload produced no false match. This detector is
+blind and has no expected payload, so the re-encode stability and schema
+restriction above stand in for that test.
+
+#### Why the DWT-DCT decoder looks the way it does
+
+Two things in `dwt_dct.py` are load-bearing and neither is obvious from the code.
+
+`_approximation` calls `pywt.dwt` twice instead of `pywt.dwt2`, and transposes
+before each pass. A factorial ablation over both axes separates the two:
+skipping the three detail bands `dwt2` computes and this code discards is worth
+**4%**, while the transposes are worth **2.8x**, because pywt walks the axis it
+transforms and on axis 0 of a C-contiguous plane that is a column walk. The
+arithmetic saving is the intuitive explanation and it is the small term; four
+independent profiles named it as the mechanism before the ablation contradicted
+them.
+
+Bit-identity is a hard requirement, not a preference. For uint8 input the exact
+Haar LL value is a multiple of 0.5 and the bit test is `peak % 36 > 18.0`, a
+threshold sitting exactly on a representable value that ~1 block in 72 lands on,
+so a 1-ulp difference deterministically flips real bits. That is why the ~16x
+available from a hand-rolled numpy Haar is unreachable rather than merely
+untaken: pywt's C convolution contracts into an FMA that numpy has no ufunc for,
+and `np.longdouble` is 64-bit on arm64 macOS.
+
+Each pass is one flat `pywt.downcoef` call over a raveled strip rather than
+`pywt.dwt(..., axis=1)[0]`, and the plane is processed in strips of `_STRIP`
+block-rows so no full-plane float64 intermediate is ever materialized. The strip
+height is not a tuned value: 8 through 64 all scored inside each other's noise
+with unstable ordering, and only "strips at all" versus whole-plane matters.
+
+`_approximation`'s even-last-axis check is load-bearing, not defensive. Haar's
+filter is length 2, so an even row length keeps every pair inside its own row;
+on an odd width the pairs walk across row boundaries and the reshape still
+succeeds whenever the total is even, which would be wrong bits with no
+exception. Both call sites are even by construction today, and
+`TestRaveledHaarPass` pins both halves -- the `downcoef`/`dwt` equivalence,
+which a pywt upgrade could take away, and the raise on an odd width.
+
+Measured on a 1536x2816 image, all arms timed in one process: the decoder went
+0.112 s (the original per-block Python loop) to 0.011 s vectorized to 0.007 s
+with strips, and a warm `identify()` 1.757 s to 1.365 s on the first step and a
+further 0.4% on the second. That last figure is the point at which this target
+is finished: the decoder is now under 2% of `identify()`, so speed here has
+stopped buying anything. What the strips buy is peak RSS in the stage, 111 MB to
+21 MB on a 4.3 MP image, which is what matters on the memory-limited Space.
+
+Both steps were verified by recording decoder output and detector verdict over
+200 sampled `data/` images plus two synthesized carriers before and after: the
+record is byte-identical, as are seven degenerate shapes (`1x65536` through
+`8x8192`, plus an odd width) that clear the caller's area check.
+
+Regression coverage:
+
+- [`test_identify.py`](../tests/test_identify.py)
+- [`test_trustmark_detector.py`](../tests/test_trustmark_detector.py)
+- [`test_invisible_watermark.py`](../tests/test_invisible_watermark.py) --
+  note `test_in_tree_decoder_matches_upstream` is the parity guard against
+  upstream's own decoder, and the whole module is `skipif(not is_available())`.
+  A green run without the `detect` extra installed has not checked parity at
+  all, so a decoder change still owes the before/after verdict record.
+
+## Visible mark removal
+
+### Registry and decision flow
+
+[`watermark_registry.py`](../src/remove_ai_watermarks/watermark_registry.py) is
+the only visible-mark registry. `mark_keys()` supplies the CLI choices, so the
+CLI must not maintain a separate mark list.
+
+Automatic removal has three distinct stages:
+
+1. Perception: each registered detector produces strict and relaxed candidates.
+2. Decision: the pure `decide` arbiter applies sensitivity and corroborating
+   provenance.
+3. Action: each selected mark is localized to a mask and passed to the shared
+   fill function.
+
+`sensitivity="strict"` never relaxes a detector. `sensitivity="auto"` can relax
+one only when metadata or a sufficiently strong same-product sibling confirms
+that product. The removed blanket `assume_ai` mode is rejected explicitly.
+
+The Jimeng pill has an additional decision gate because its visual detector is
+weaker than the other registered marks. Keep that policy in the registry, not
+inside unrelated detector engines.
+
+Everything about a mark is one registry row: its product family, manufacturer,
+label regime, the platform sentence `identify` reports for it, and the metadata
+signals that confirm its vendor. The manufacturer is distinct from the label
+regime: Alibaba, ByteDance, Kuaishou, Tencent, and other companies all use TC260,
+but their marks do not belong to one manufacturer family.
+`identify._VISIBLE_MARK_PLATFORM` and the signal mapping in
+`api.visible_provenance` are derived from those rows rather than hand-maintained
+beside them. A TC260 mark also needs its producer row in `TC260_PRODUCERS`;
+registry-coverage tests reject missing mappings. Two marks carry no platform of
+their own: the Gemini sparkle has its own higher-confidence path, and the pill
+alone is too weak to attribute.
+
+The set of marks that veto the Jimeng pill is derived from the registry rows:
+every other product from the same manufacturer. Doubao and Dola therefore veto the pill
+because all three products are ByteDance, while Qwen, Kling, Yuanbao, RunningHub,
+Baidu, and LiblibAI do not become siblings merely because they use the same TC260
+standard. Marks from other manufacturers cannot enable or veto the
+ByteDance-specific arm.
+
+A TC260 label relaxes the vendor its `ContentProducer` names, resolved through
+the shared producer table, which also supplies `KnownMark.tc260_producer_codes`.
+The label itself is vendor-agnostic, so this used to
+relax ByteDance's two products on every China-AIGC image -- which both risked a
+false fill on an image carrying some other vendor's mark and denied that vendor's
+own mark the relaxed gate its `provenance_ncc_factor` was calibrated for. An
+absent or unmapped producer confirms no particular product and leaves every detector
+strict.
+
+`remove_auto_marks` removes every selected mark, not only the strongest one.
+This matters for images that carry marks in more than one corner.
+
+The automatic path has four stages: perception, decision, action, then read-only
+validation. The first action reuses the exact detection produced by perception,
+so the common one-mark path pays for one pre-fill and one post-fill detector pass
+rather than two pre-fill passes plus validation. Later co-firing marks retain the
+historical re-detection on the progressively edited image instead of acting on
+stale geometry.
+
+After one fill, the same detector runs at the same resolved trust level. A
+post-fill detection counts as a residual only if its region overlaps the actual
+mask bounding box. The per-mark status is `cleaned`, `partial`, or `unvalidated`;
+the aggregate also has `no_watermark`. Validation never expands the mask or
+retries the fill. Because it uses the same detector, this is a consistency check,
+not an independent oracle of visual quality.
+
+Runtime was measured on 2026-09-03 with 12 tracked public visible fixtures, five
+warmed repetitions each, explicit `cv2`, alternating old/new order, and no
+concurrent benchmark load. Across 60 paired runs, the old path's median was
+373.9 ms and the validated path's median was 379.2 ms; the median paired delta
+was -0.9% (interquartile range -3.6% to +1.5%) and the aggregate delta was
+-1.5%. All output pixels and removed-label lists matched the old path. These
+figures show no measurable regression on that corpus, not a cross-machine
+latency guarantee. A separate exact snapshot check kept every strict/relaxed
+verdict, confidence, and region unchanged for all 12 detectors on all 12
+fixtures.
+
+Regression coverage:
+
+- [`test_watermark_registry.py`](../tests/test_watermark_registry.py)
+- [`test_api.py`](../tests/test_api.py)
+
+### Gemini sparkle
+
+[`gemini_engine.py`](../src/remove_ai_watermarks/gemini_engine.py) uses a
+multi-scale shape search and a false-positive gate. Its captured sparkle assets
+serve detection and mask geometry only. Pixel recovery is performed by the
+shared fill backend.
+
+`detect_sparkle_confidence` uses a process-wide shared engine because its loaded
+assets and template ladder are immutable.
+
+A decorative sparkle/glint/star glyph in stylized typography -- a bright,
+near-white four-point accent, the same silhouette family the engine's own
+template captures -- is a known, unresolved false-positive class. A book-cover
+title's decorative diamond accent inside a neon-glow letterform scored 0.64, just
+under `_SPARKLE_FP_CONF`, and the removal step painted a permanent smudge over
+the artwork. Investigation (margin, gradient, saturation, and a prototyped local
+surrounding-edge-density check) found no signal that separates this class from a
+genuine weak Gemini sparkle over a noisy/textured photo background -- a
+synthetic counter-example lands in the same confidence band with the same
+clean-margin, clean-gradient, near-white-core signature that the
+`_SPARKLE_KEEP_CONF` rescue exists to protect (see
+`test_bright_white_blurred_sparkle_rescued`). Tightening any of those signals to
+exclude the glyph excludes the legitimate case too. Closing this gap needs a
+real labeled corpus of decorative-glyph occurrences, the way
+`watermark_registry.GEMINI_SPARKLE_TRUST_CONF` was calibrated against 954 Google-
+metadata uploads, not another synthetic guess. `_apply_false_positive_gate` logs
+`DEBUG` on the exact bypass path this incident hit, to build that corpus from
+production occurrences.
+
+Texture reaches the trust gate too. A local sweep on 2026-09-24 found non-Gemini
+images scoring up to 0.67 (whiteboard photos, UI screenshots, digital art) while
+real Google-signed sparkles went as low as 0.55 (two Higgsfield wood-grain
+downloads that previously scored 0.53 at `7.8x` and `10.2x` nominal margin are
+now rejected directly by `_apply_false_positive_gate`'s off-corner guard). No
+threshold separates sharp nominal-corner texture matches from genuine weak
+sparkles, so `identify` passes `_collect_visible_signals` the first non-Google
+AI vendor from the trusted vendor claims (C2PA only when verified) and drops a
+sparkle on such an image with `_SPARKLE_VETOED_CAVEAT`. Google provenance never
+vetoes. The removal arbitration does not see these claims.
+
+When `trust_provenance=False` and fused confidence sits below `_SPARKLE_FP_CONF`
+(`0.65`), `_apply_false_positive_gate` also checks corner placement against the
+frame's expected `WatermarkPosition` before consulting brightness or edge
+gradients: a candidate sitting further than `0.25 * min(width, height)` from the
+bottom or right edge, or an undersized match (`< 0.6 * config.logo_size`) sitting
+further than `2 * config.margin_right` from the corner, is demoted to `0.30`.
+Inside that window, the low-gradient white-core blurred-sparkle rescue
+(`_SPARKLE_KEEP_CONF = 0.52`, `_SPARKLE_WHITE_SAT = 0.20`) applies only within
+`2 * config.margin_right` of the corner (`not off_corner` in `_corner_geometry`), keeping
+re-compressed sparkles at nominal margins while refusing to rescue out-of-focus
+crowd bokeh floating mid-frame (across 46 strict Google C2PA exports and 12
+`WildAIGC-Bench` AIGC Gemini positives, every genuine sparkle sits within
+`0.125 * min(width, height)` and `3.0 * config.margin_right`, and `0` low-gradient
+positives exceed `2.0 * config.margin_right`, whereas the `WildAIGC-Bench` real
+photo bokeh false positive sat at `0.350 * min(width, height)` / `9.19 *
+config.margin_right`). This prevents micro-scale lattice/mesh cells and
+mid-frame highlights inside the `512x512` search window from passing as
+uncorroborated corner sparkles.
+
+Regression coverage:
+
+- [`test_gemini_engine.py`](../tests/test_gemini_engine.py), including
+  `TestDecorativeGlyphFalsePositive` pinning the confirmed false positive and its
+  blocking counter-example.
+- [`test_identify.py`](../tests/test_identify.py)
+  `test_non_google_provenance_vetoes_a_sparkle_on_texture` and
+  `test_google_provenance_keeps_the_sparkle`.
+
+### Text mark engines
+
+[`_text_mark_engine.py`](../src/remove_ai_watermarks/_text_mark_engine.py)
+provides common localization, detection front ends, template caching, rival
+comparison, and footprint construction.
+[`_text_mark_variants.py`](../src/remove_ai_watermarks/_text_mark_variants.py)
+combines independently gated layouts under one registry key while retaining the
+winning layout's template and mask geometry. Its bottom-right variant searches
+only anchor-valid placements, so an unrelated stronger match elsewhere in the
+corner ROI cannot hide the real edge-hugging mark.
+
+Each vendor module supplies a `TextMarkConfig` and only the behavior that cannot
+be represented by the shared base:
+
+- [`doubao_engine.py`](../src/remove_ai_watermarks/doubao_engine.py)
+- [`jimeng_engine.py`](../src/remove_ai_watermarks/jimeng_engine.py)
+- [`qwen_engine.py`](../src/remove_ai_watermarks/qwen_engine.py)
+- [`kling_engine.py`](../src/remove_ai_watermarks/kling_engine.py)
+- [`yuanbao_engine.py`](../src/remove_ai_watermarks/yuanbao_engine.py)
+- [`dola_engine.py`](../src/remove_ai_watermarks/dola_engine.py)
+- [`workbuddy_engine.py`](../src/remove_ai_watermarks/workbuddy_engine.py)
+- [`samsung_engine.py`](../src/remove_ai_watermarks/samsung_engine.py)
+- [`runninghub_engine.py`](../src/remove_ai_watermarks/runninghub_engine.py)
+- [`baidu_engine.py`](../src/remove_ai_watermarks/baidu_engine.py)
+- [`liblib_engine.py`](../src/remove_ai_watermarks/liblib_engine.py)
+- [`microsoft_engine.py`](../src/remove_ai_watermarks/microsoft_engine.py)
+- [`generic_ai_label_engine.py`](../src/remove_ai_watermarks/generic_ai_label_engine.py)
+
+Qwen is the one image registry row that currently covers two layout families.
+The shared text engine handles `千问AI生成`; `QwenEngine` also scans a square
+bottom-right region for Qwen Create's three-lobe symbol. Its 0.65 NCC gate was
+measured against the cleared provider fixture (0.848) and 132 decoded tracked
+controls other than that positive (maximum 0.516 on 2026-09-10, zero fires).
+NCC is not portable across OpenCV builds: issue 108 reported 0.81 on
+`data/fixtures/provenance/chatgpt-1.png` (sand and denim, no glyph) while this
+tree's OpenCV scores 0.437 on the same file (4.11, and again 5.0 on 2026-09-23). A fire also requires
+binarized IoU of the bright residual with the three-lobe silhouette at or
+above 0.70; the true fixture stays at or above 0.75 down to 512 px, and
+chatgpt-1 sits at 0.55. `provenance_ncc_factor` remains 1.0, so OpenAI C2PA
+cannot relax this mark.
+The removal mask reuses the aligned three-lobe alpha and expands it by 6% of
+the detected side; a solid square was rejected because classical inpainting
+left a visible rectangular blur.
+`scripts/visible_alpha_solve.py qwen_symbol` rebuilds the template from the
+cleared fixture with a cubic local-background fit and retains only the three
+interior lobes.
+
+LiblibAI has two registry entries under one product. `liblib` retains the
+historical bottom-center wordmark detector. `liblib_pill` covers the compact
+top-left `AI生成` pill and never fires at strict trust: the shape is generic, so
+automatic removal requires either LiblibAI TC260 metadata or a confident
+bottom-center sibling detection. The cleared current provider fixture scores
+`0.216367` against the reused synthetic pill silhouette, above the corroborated
+`0.20` gate but below the standalone Jimeng pill's `0.22` gate. A flat-footprint
+check remains mandatory. The pill is a separate action rather than a distant
+component unioned into the bottom mask, keeping LaMa and MI-GAN crops local to
+each mark.
+
+Kling keeps independently gated silhouettes under one registry key. The older
+measured cohort uses `可灵AI 3.0` (`kling_alpha.png`, plus `kling_4_alpha.png`
+for `可灵AI 4.0`); a direct authenticated IMAGE 3.0 export on 2026-09-04 uses
+`KlingAI 3.0` (`kling_latin_alpha.png`), and Kling 4.0 consumer exports use
+`KlingAI 4.0` (`kling_latin_4_alpha.png`). The Latin template scored 0.429 on
+that 1024 x 1024 provider original (and 0.434 on 720 x 1280 Kling 4.0 frames). Its narrow 0.9/1.0/1.1 scale ladder scored at most 0.349
+across the 94 available neighboring real and synthetic image controls, while an
+adversarial solid corner blob reached 0.379, so its strict gate is 0.40. This is
+one-positive provisional calibration, intentionally separate from the older
+CJK detector rather than presented as broad recall evidence. Both layouts now
+project row-wide and column-wide structure out of the winning patch (shared
+`_text_mark_engine.glyph_detail_ncc`) before a
+second correlation. This preserves glyph detail while rejecting ordinary panel
+and image boundaries that previously matched the Latin template.
+
+The measured Microsoft badge variant (2026-08-27 registration) is the first
+`tr`-corner mark and the first `long`-side scale basis: the pill tracks the
+render dimension, so a
+1024x1536 portrait carries the same pill as 1536x1024, and a width basis
+undersized the template by the aspect ratio (portrait carriers fell to
+0.15-0.32 NCC until the basis was measured). The silhouette is a white pill with
+its synthetic internal shapes knocked out - the holes are what separate it from
+any other bright rounded corner element (a plain white pill scores below the gate
+in the tests). It does not claim coverage of Microsoft's other documented icon,
+wording, or position variants beyond the separately gated beige `Made with AI`
+text pill.
+
+The 2026-08-27 rerun used the registered engine through
+`scripts/registered_mark_calibrate.py`, rather than a copied detector
+configuration. The manifest kept three evidence classes separate: 17 visually
+confirmed carriers, 343 Microsoft-provenance files without a visual adjudication,
+and 1200 non-overlapping no-signal controls. At the strict 0.38 gate, 15/17
+confirmed carriers fired (min 0.249, p50 0.519, p90 0.578, max 0.579), while
+0/1200 controls fired (p99 0.200, max 0.293). The provenance cohort produced
+78/343 fires, but that is not a recall measurement because provenance identifies
+the provider, not the presence of this visible layout. That cohort was later
+labeled by an OCR badge census (2026-08-28: 86 badge carriers, 257 badge-less,
+badge-less max 0.251 / p99 0.213), which is what enabled the shipped provenance
+relaxation 0.7: the relaxed band [0.251, 0.38) holds three faint badges and
+zero false fills, re-verified as 3 band detections with 0/257 badge-less fires
+on the provenance path.
+
+The detector and removal mask must use compatible geometry. A detector that
+fires while producing an empty or misplaced mask is a removal failure even if
+the detection test passes. That parity is now structural rather than a
+convention: the three continuous front ends share one ladder sweep
+(`_ladder_best`), and the winning box travels to the mask on
+`TextMarkDetection.match_box` instead of being swept a second time.
+
+Detection is split into a trust-level-blind `_scan` and a `_verdict` that applies
+the threshold. `detect_both` returns the strict and relaxed verdicts from one
+scan, which is what the arbiter's perception stage calls. A per-mark demotion
+belongs in the `_post_gate` hook, never in a `detect` override: an override is
+invisible to the single-pass path, and the RunningHub and Yuanbao anchor gates
+were briefly skipped there for exactly that reason.
+
+A mark whose removable rectangular footprint differs from what the detector localizes
+overrides `_footprint_rect` (which policy) and `_extend_match_box` (how far the
+box grows), not the whole `footprint_mask`. Baidu extends right to the corner tag
+and LiblibAI extends left to the triangle logo; both inherit every guard around
+that arithmetic.
+
+Doubao, Kling, and Samsung retain deliberate sparse masks for their original
+layouts because those alpha assets supply more information than a rectangle.
+Doubao's continuous top-hat response
+locates the mark, then `DoubaoEngine.footprint_mask` resizes the alpha to that same winning
+`match_box` and masks only the glyphs. The canonical 2048-pixel fixture has bright
+branch texture behind the bottom-edge wordmark; bounding the thresholded response,
+padding it, and dilating it produced a solid 404-by-134 mask clamped to the bottom
+and right edges. OpenCV then had no context beyond either edge and filled the hole
+with large triangular wedges. The aligned sparse mask keeps both frame edges
+untouched and still clears the detector. `force` cannot align a missing detection,
+so it retains the shared geometry-box fallback.
+
+The added outlined Doubao, stacked Yuanbao, Dola, WorkBuddy, Korean Samsung, and
+beige Microsoft layouts use solid detector-aligned footprints where a sparse
+synthetic glyph mask left visible outlines, sparkles, capsules, or shadows in
+rendered removal checks. Each layout keeps its own detection threshold and mask
+geometry; selecting one does not replace the calibrated behavior of the older
+layout under the same registry key.
+
+Doubao keeps the original low-saturation scan for pale corners. When enough of
+its corner is strongly colored and that scan falls below the strict gate, a
+wider color filter searches for white glyphs tinted by the background. The
+stronger scan wins, preserving previously accepted pale-background marks.
+
+Kling keeps the pixel-derived footprint for release-specific strokes, then unions
+it with the synthetic alpha aligned to the detector's winning match box. This is
+necessary because its faint canonical overlay produced a blob covering only the
+left half of `可灵AI 3.0`, leaving `3.0` after fill. On 60 constructed pairs from 20
+tracked source images crossed with the three detector scales, the hybrid covered
+100% of the known stamped footprint and cleared 60/60, versus 29/60 for the blob
+alone. In the same paired region the hybrid improved median PSNR by 6.59 dB and
+median SSIM by 0.062; both moved in the favorable direction on 52 pairs, tied on
+seven, and regressed on one. The union is deliberate: replacing the old footprint
+with the synthetic core alone would overfit the font render and could discard a
+real variant stroke the pixel mask already found.
+
+Samsung uses the continuous top-hat front end with an exact `(1.0,)` scale ladder.
+The three primary real positives (two controlled captures and one real-content
+photo) scored 0.82-0.90 (and an additional retained 3000x4000 upload scored 0.692),
+while 421 public clean non-caption controls reached at most 0.387. On `WildAIGC-Bench`
+real photos, small bottom-left archival postcard captions and negative borders
+scored 0.403-0.434 (and synthetic postcard caption decoys reached 0.435), causing
+four uncorroborated false positives at the old 0.40 gate. Base `DETECT_NCC_THRESHOLD`
+therefore sits at 0.50, clearing the caption band with >=0.065 headroom while
+retaining 305/421 nominal constructed marks; `PROVENANCE_NCC_FACTOR` is `0.40 / 0.50`
+(`0.80`) so `samsung_genai` metadata-confirmed detection keeps its 0.40 floor
+(never relaxing to 0.28, which admitted 14/421 clean controls without recovering any
+real positive). The Korean `samsung_ko_alpha.png` variant explicitly pins
+`provenance_ncc_factor=1.0` so its 0.46 gate is not lowered by `replace(_CONFIG, ...)`.
+The exact `(1.0,)` rung on the Italian wordmark matches the measured width at both
+1086 and 2958 pixels and avoids giving clean corners extra scale trials.
+On the original 421 clean backgrounds, nominal constructed detection rose from 81/421
+through the binary front end to 321/421 at 0.40 through continuous top-hat, with no
+control fires in either arm. This constructed arm measures the known failure mode on
+textured content; it is not a production-recall estimate.
+
+The winning template location travels with the score. `SamsungEngine.footprint_mask`
+aligns the captured alpha to that same box and masks only pixels above the measured
+0.05 alpha floor, followed by one pixel of dilation. The asset already contains the
+solved opacity, whose peak is about 0.38; research renderers must composite it toward
+pure white exactly once. Multiplying it by 0.38 again produced an unrealistically
+faint synthetic mark and invalidated the first Samsung response curve.
+
+The mask geometry was checked on both retained flat provider captures and by a
+paired 60-image constructed-reference ablation on 2026-09-04. At the native
+1086-pixel capture width, the mask fell from about 19.7k pixels to 4.9k while one
+fill still cleared the detector. Against the old rectangle, regional PSNR improved
+on 55/60 images for OpenCV, 55/60 for MI-GAN, and 57/60 for LaMa; median paired
+gains were 14.98, 10.38, and 14.87 dB respectively (two-sided sign-test
+`p=1.04e-11`, `1.04e-11`, and `6.25e-14`). Explicit `force` has no detected box to
+align and deliberately retains the conservative geometry fallback.
+
+For the 321 newly detected constructed marks, the winning box matched the stamped
+box exactly and every detection produced a non-empty mask. One OpenCV fill remained
+detectable and is surfaced by post-removal validation; the detector does not trigger
+an automatic retry.
+
+Yuanbao uses the polarity-independent `contrast` front end because its standard
+two-line mark (`元宝` over `AI生成`) can be light on dark scenes or dark on light
+scenes. Its detector and footprint both use the same best-match box, keeping
+`provenance_ncc_factor=1.0` so `_footprint_rect`'s strict re-detection agrees with
+perception. Base `DETECT_NCC_THRESHOLD` sits at 0.395 inside the verified empty
+`[0.38, 0.3975)` cohort band (lowest 2026-07-25 positive 0.3975; lowest retained
+on-disk positive 0.424). Because genuine positives overlap the 0.403-0.439 band
+reached by dark corner shadows, saturated-sky railings, and hoodie folds on
+`WildAIGC-Bench` and clean controls, `YuanbaoEngine._post_gate` calls
+`super()._post_gate(...)` for the 0.04 bottom-right anchor and then requires both
+stacked half-lines to correlate (`min(top_ncc, bot_ncc) >= 0.36`; real positives
+0.384-0.950 vs false positives 0.221-0.344) as well as row/column mean-subtracted
+2D glyph detail (`glyph_detail_ncc >= 0.31`; real positives 0.326-0.952 vs false
+positives 0.214-0.289). The separate one-line photographer-overlay variant is not
+covered.
+
+#### Generic bare "AI生成" label
+
+Registered 2026-09-21 for a confirmed production miss: a bottom-right "AI生成"
+text watermark with no brand wordmark in front of it was left completely
+unremoved because none of the brand-tuned detectors above match a bare,
+brand-less corner stamp -- `identify` found only the TC260 metadata label, with
+nothing for `suggested_mode=visible` to localize. No customer image bytes exist
+for that case in any repository; this engine is built from research plus
+synthetic fixtures.
+
+Research found the bare wording is not tied to one dominant generator. vivo's
+own support documentation confirms its Gallery app stamps a bare "AI生成"
+watermark after AI消除/AI扩图/大片模式 editing (togglable under Album Settings),
+and independent reporting documents the same bare watermark on Xiaomi Gallery's
+AI-edit output. Community reporting suggests Samsung's China-locale Galaxy AI
+tools render "AI生成" too, distinct from the Italian string the `samsung` engine
+targets. No independent confirmation of OPPO/Huawei's exact wording was found.
+Because the label is a compliance stamp mandated by GB 45438-2025 rather than a
+brand mark, several OEM gallery apps plausibly share the same wording with only
+styling differences -- which is why this is one generic fallback rather than
+another per-OEM tuned config.
+
+Unlike a captured brand mark, there is no vendor screenshot to solve an alpha
+map from: the mark has no logo element, only literal text, so it shares
+`scripts/render_vendor_silhouettes.py` -- the same capture-less font-rendering
+pipeline that already produces Qwen/Baidu/Kling/Yuanbao's own text-only
+silhouettes -- which renders "AI生成" directly (white on black, already the
+alpha map) and crops to the glyph body, following `visible_alpha_solve.py`'s
+asset contract (a grayscale PNG under `assets/`) so it plugs into the same
+`TextMarkConfig`/`TextMarkEngine` machinery as every captured mark.
+
+Every brand-specific rival mark in this family literally contains the
+substring "AI生成" in its own glyphs (Doubao, Qwen, Baidu, Kling, Yuanbao --
+Jimeng's "★ 即梦AI" does not and is excluded), so this generic template is at
+real risk of firing a second time on an already-attributed mark. At this
+asset's glyph shape the usual 0.10 `rival_margin` already separates it from
+Qwen's own binarized glyph blob once the absolute NCC gate clears 0.45, so
+`generic_ai_label_engine.py` keeps the shared default rather than widening it
+per mark.
+
+CALIBRATION IS SYNTHETIC ONLY. `scripts/calibrate_generic_ai_label.py` sweeps
+the gate and rival margin over 36 positives (the rendered glyph composited onto
+generated backgrounds at 4 sizes, 3 scale rungs, 3 opacities), 40 generated
+clean/textured negatives, and 8 rival marks' own committed gallery examples. At
+gate 0.45 or 0.50 / the default 0.10 margin the sweep reads the same 67% recall,
+100% precision, zero rival cross-fires; a lower 0.35-0.40 gate reaches the same
+67% recall but admits one Qwen cross-fire. 0.50 is the shipped choice: it costs
+nothing on this corpus and clears a faint inpainting residual the library's own
+removal leaves behind, which otherwise re-fires detection at 0.45. No real
+"AI生成"-generator screenshot was available to validate either number against
+actual vendor output -- treat this
+detector as weaker evidence than the brand-tuned engines above until it is
+recalibrated on real captures.
+
+#### Wan logo and wordmark
+
+Registered 2026-09-24 from one real Wan 2.7 Pro export (2048 px square, neutral
+scene, `data/fixtures/visible/wan/provider-original.png`). The mark measures
+0.131 x 0.050 of the short side with ~0.005 margins; the synthetic silhouette is
+`draw_wan` in `scripts/render_vendor_silhouettes.py` (a cut hexagon plus Avenir
+Next Demi Bold `Wan`, parameters picked by best match on the real mark, 0.66).
+NCC alone separates poorly: 3092 local images (every tracked fixture plus 3000
+sampled) reached 0.519. The mark hugs the corner, so `WanEngine._post_gate`
+also requires the match to end within 0.015 of the short side from both edges;
+with that anchor no negative scored 0.45 or above. The gate is NCC >= 0.55 plus
+the anchor, strict only. The TC260 producer is Tongyi Yunqi (Hangzhou), USCC
+`91330106MA2CFLDG4R`. Calibration stays provisional until a wider Wan cohort
+exists.
+
+#### OpenArt wordmark
+
+Registered 2026-09-21 after a `visible`-mode run left a large, prominent OpenArt wordmark
+(a bowtie/infinity icon followed by "OpenArt" in bold sans-serif, semi-
+transparent white) completely unremoved -- pixel-identical before and after.
+`identify` found nothing at all for that case: no C2PA, EXIF AI tag, or China
+AIGC/TC260 label, so the visible mark is the only known attribution route for
+a bare OpenArt export.
+
+**This is the only registered mark placed at the FRAME CENTER rather than a
+corner.** Every other engine in this family anchors to one of the four corners
+or a bottom/top edge midpoint; `_text_mark_engine.py` gained a new `"cc"`
+corner literal (both axes centered) specifically for this row, following the
+same per-vendor-measured-geometry precedent as the existing `"bc"` (LiblibAI)
+and `"tr"`/`"long"`-basis (Microsoft) additions. A frame-center locate box sits
+over far more varied image content than a corner box, which is why its NCC
+gate (0.62) is set well above Doubao/Jimeng's measured 0.45-0.50 rather than
+matching them.
+
+OpenArt (openart.ai) requires an OAuth-authenticated account for image
+generation -- there is no anonymous or API-key access (confirmed via its own
+help center and MCP/CLI docs, 2026-09-21) -- so this repository's tooling
+cannot generate a second real capture to survey placement variance by aspect
+ratio, watermark configurability, or whether a paid tier still embeds C2PA;
+only the one customer-reported case above is confirmed. OpenArt's own pricing
+page lists "Watermark-free" as a paid-plan-only feature, consistent with every
+free-plan output carrying this mark, and its help center separately confirms
+free-plan VIDEO exports carry a removable watermark toggle at download --
+independent evidence that a visible free-tier watermark is real product
+behavior, not one-off.
+
+Unlike every captured brand mark in this file, there is no committed real
+capture to solve an alpha map from (see above -- no account access) and no
+public example image was reconstructed by hand. `scripts/build_openart_alpha.py`
+instead PROCEDURALLY DRAWS a reconstruction of OpenArt's own public brand mark
+(the bowtie icon + wordmark shown on openart.ai's own marketing pages) as a
+grayscale alpha PNG, the same bundled-asset contract every other engine uses.
+Its wordmark is a Hershey `putText` render, so like the video Hershey templates
+the recipe refuses anything but OpenCV 4.x, whose output the committed asset is.
+
+**CALIBRATION IS PROVISIONAL, NOT MEASURED.** There is no recall/precision
+sweep like Doubao's or the generic-label engine's: no positive corpus exists
+at all beyond the one production case, real or synthetic-composited. The 0.62
+NCC threshold is a conservative guess, not a measured operating point; a quick
+false-fire check against 15 random Gaussian-blurred noise images at plausible
+aspect ratios and sizes found zero false fires, which is reassurance, not
+calibration. Do not cite this mark in any auto-scan precision claim, and do
+not lower its threshold, without a real captured corpus under
+`data/calibration/openart/`.
+
+`openart_engine.py`'s module docstring carries the same caveats in code. Its
+tests (`tests/test_openart_engine.py`) mirror `test_doubao_engine.py`'s
+structure entirely on synthetic composites of the bundled asset -- there is no
+`TestRealSample` analogue.
+
+#### Bare-upload pill arm: measured impossible with the current detector (2026-08-28)
+
+`_keep_pill` never removes a metadata-bare pill, and the question "can a bare arm
+(score + footprint-flatness) be opened" was measured to a closed NO over the local
+private corpus: 68 OCR-confirmed bare pills (an independent pixel-level label: the
+band sweep read a flush-left `AI生成`) score p50 0.181 / max 0.317, while 799 clean
+no-signal negatives reach 0.353 and 18 of them already pass the shipped 0.22 raw
+gate. The true-pill and clean distributions overlap completely -- there is no
+threshold -- and the engine's own high scores (0.34-0.48 on the flagged cohort)
+correlate with textured corners, not with pills: the edge-NCC keys on "text-like
+structure top-left". As with the Jimeng wordmark's silhouette, no threshold repairs
+this; a bare arm needs a detector that keys on the pill's rounded-rectangle
+geometry, and until one exists the bare-arm question is settled by this
+measurement, not by gate tuning. The local calibration harness is not tracked.
+(cohorts A/B/C over the no-signal pool).
+
+The Jimeng pill detector lives in
+[`pill_engine.py`](../src/remove_ai_watermarks/pill_engine.py). It combines the
+existing weak synthetic-outline path with a high-confidence contrast template
+for the measured solid `AI生成` label. A Jimeng provenance match can corroborate
+that verified label without the flat-background guard; the weak outline keeps
+both the provenance and background gates described above. Removal follows the
+matched label when verified and otherwise uses the fixed top-left footprint. Its
+public, published real-world regression carrier is
+`data/fixtures/visible/jimeng_pill/provider-published-example.jpg`; the direct
+detector scores the pill at 0.28 and the same image's Jimeng wordmark at 0.61.
+
+Each engine has a corresponding test module under [`tests/`](../tests/).
+Shared behavior is covered by:
+
+- [`test_text_mark_engine.py`](../tests/test_text_mark_engine.py)
+- [`test_text_mark_faint_mask.py`](../tests/test_text_mark_faint_mask.py)
+- [`test_text_mark_memory.py`](../tests/test_text_mark_memory.py)
+
+#### Doubao video mark (2026-08-28 registration)
+
+`detect_doubao_frame` reuses the image engine's synthetic `doubao_alpha.png` as
+its video template (same `豆包AI生成` run, bottom-right) through
+`_asset_template`, so image and video cannot drift apart on the glyph. Search
+profile: heights 3.2-6.0 percent of the short side from origin (0.60, 0.76),
+measured on the corpus. Policy is seedance-style single-floor: weak 0.35 /
+strong 0.55 / anchor IoU 0.80, calibrated by sequential decode over 39
+TC260-confirmed Doubao videos and 25 negatives -- a 12-frame stable run at 0.35
+accepts 33/39 positives and 0/25 negatives, while 0.30 already accepted one
+negative, so the bar stays at 0.35. Through the shipped arbiter
+(`identify_video`): 32/39 selected as doubao, 0/25 false; the remainder split
+between no stable run (5) and cross-template ties handed to earlier table
+entries (sora 1, kling 1) -- the registry's known order-decides behavior, not a
+doubao-specific defect. The local sequence-calibration harness is not tracked.
+
+Two further video candidates were measured and PARKED the same day (2026-08-28,
+local RunningHub/Jimeng video calibration): the Jimeng CN wordmark does not
+separate on video (1/5 positives vs 2/25 negatives hold a 12-frame 0.35 run --
+the same silhouette-generality the image jimeng engine documents), and
+RunningHub video separates (1/2 positives, 0/25 negatives) but a two-positive
+cohort is below the registration bar; both await corpus growth. The top-left
+"AI生成" pill on video is parked by analysis, not measurement: its image-engine
+false-fire mode is a STATIC textured corner, which is temporally stable, so the
+recurrence arbiter cannot screen it.
+
+### Fill backends and region erasing
+
+[`region_eraser.py`](../src/remove_ai_watermarks/region_eraser.py) implements the
+same backends used by visible removal and the user-directed `erase` command:
+
+- `cv2`
+- `migan`
+- `lama`
+
+`watermark_registry.resolve_backend` selects LaMa first, then MI-GAN, then
+OpenCV for `auto`. A memory-constrained caller should explicitly select MI-GAN
+or OpenCV instead of relying on `auto`.
+
+MI-GAN and LaMa crop around the mask before model inference and paste back only
+masked pixels. Their model sessions are loaded lazily. MI-GAN uses the inverse
+mask polarity expected by its ONNX model.
+
+Depth is the source's, and only the filled pixels can lose it. `cv2.inpaint`
+accepts 16-bit as a single channel only (its colour path is 8-bit) and the shipped
+MI-GAN ONNX declares a uint8 input tensor, so both narrow the frame through
+`_erase_via_uint8`, fill, and write the result back into the original array --
+everything outside the mask stays bit-exact at 16 bits, and an alpha plane remains
+bit-exact everywhere. LaMa is float32 and needs no narrowing: it normalises by the
+source's full scale and returns the source dtype.
+Before that, a 16-bit colour image raised a bare `icvInpaint` "Unsupported format"
+error on the cv2 backend, and LaMa divided the crop by a hardcoded 255 -- feeding the
+model ~235 where it expected ~0.92 and then wrapping the uint8 cast into near-black
+pixels, which is the worse failure of the two because it is silent. A float image is
+now refused by name rather than reaching a backend that cannot take it.
+
+Regression coverage:
+
+- [`test_region_eraser.py`](../tests/test_region_eraser.py)
+- [`test_inpaint_fallback.py`](../tests/test_inpaint_fallback.py)
+
+`_get_session` prefers `CUDAExecutionProvider` when onnxruntime offers it and
+falls back to a CPU-only session if creating the CUDA session raises.
+
+`video erase` is the user-directed video counterpart, through
+`video.remove_video_region`: each `x,y,w,h` box is clipped to the frame (a box
+wholly outside raises), an optional frame range limits the erased slice, and the
+frames go through the shared `encode_clean_video` with
+`allow_unmasked_donors=False`, so frames outside the slice are never copied back
+as temporal donors. With metadata stripping on, the result carries
+`remaining_metadata` from a post-write `get_ai_metadata`, and the text output
+exits `1` when it is non-empty
+(`test_video_erase_partial_frame_range_preserves_outside_frames`).
+
+## Invisible watermark regeneration
+
+### Profiles and strength
+
+[`_internal/watermark_profiles.py`](../src/remove_ai_watermarks/_internal/watermark_profiles.py)
+is the source of truth for:
+
+- profile names and their underscore spellings;
+- the fixed seed;
+- the SDXL global-stage checkpoint id (`SDXL_MODEL_ID`) and the Canny ControlNet id;
+- strength resolution for every profile.
+
+The current profiles are `qwen-zimage` (the default), `qwen21-zimage` (opt-in;
+`Qwen/Qwen-Image-2.1` is under the non-commercial Qwen Research License, for
+research and personal use only), `sdxl-zimage`, `chroma-zimage`, and `auto`, and
+all are CUDA-only. `controlnet`, `sdxl`, `qwen` and `default` were removed
+rather than kept as a CPU path, and are rejected rather than aliased onward. `auto`
+is a deterministic per-cohort selection policy:
+sdxl-zimage for Google, chroma-zimage for Microsoft, and qwen-zimage for
+OpenAI, Meta, and unknown (keeping `auto` commercial-safe).
+It does not run a learned router or classify the image's genre.
+
+`qwen-zimage` and `qwen21-zimage` resolve global denoise from image area for unknown
+content. Measured provider cohorts bypass that curve with flat operating points
+(`qwen21-zimage` uses `QWEN21_ZIMAGE_OPENAI_STRENGTH = 0.20` for OpenAI and shares
+the baseline Google `0.35`, Microsoft `0.15`, and Meta `0.10` points). The values,
+measurement derivations, and corpus limits are canonical in
+[`known-limitations.md`](known-limitations.md#strength-is-content-and-seed-dependent).
+
+For serverless cold starts, `InvisibleEngine.preload(global_only=True)` loads the
+mandatory global stage and YuNet while leaving the optional Z-Image and SAM face
+stack lazy until a face is detected. The default `preload()` still loads every
+stage.
+
+`Qwen21FidelityZImagePipeline` extends the strict alignment experiment with a
+lazy CPU `LocalPerceptualMetric`, registration as the default Qwen-2.1 implementation, and baseline
+fallback for unsupported paths or optional quality-stage failures.
+`InvisibleEngine.set_text_region_selector` binds caller-qualified geometry;
+the library does not choose an OCR model. `set_fidelity_enabled` switches back
+to the shared recipe without replacing the cached pipeline. Google has a separate
+`QWEN21_FIDELITY_GOOGLE_STRENGTH`; unsupported paths resolve the legacy strength
+before the single global pass. The overall default profile and auto routing are unchanged.
+
+**What is deliberately not a parameter.** Model id, step count and CFG are fixed
+by the profile, so none of them appears in `WatermarkRemover.__init__`,
+`remove_watermark`, `InvisibleEngine`, or the CLI. They used to be accepted and
+then rejected several frames down; a signature that refuses the argument outright
+fails where the caller can act on it, and stops a wrapper from threading a value
+that would silently do nothing. The step count and CFG live with the stage that
+runs them: `GLOBAL_STEPS`/`GLOBAL_CFG` with the Qwen global stage
+(`qwen_zimage_pipeline.py`), `SDXL_STEPS` with the SDXL one
+(`sdxl_zimage_pipeline.py`), and `FACE_STEPS`/`FACE_CFG` with the shared face
+stage (`two_stage_pipeline.py`). The dtype is likewise profile-owned: see "Face-stage
+dtype" for what an override cost the last time one existed.
+
+`device` is the exception and remains a library parameter: `None` or `"auto"`
+detect, `"cuda"` pins without detecting (which is what a container that knows its
+hardware wants), and any other value raises at construction. It is not a CLI
+option, because the only useful value a user could type is the one detection
+already returns.
+
+[`invisible_engine.py`](../src/remove_ai_watermarks/invisible_engine.py) handles
+image sizing, postprocessing, and the public engine
+interface. It delegates model execution to
+[`_internal/watermark_remover.py`](../src/remove_ai_watermarks/_internal/watermark_remover.py).
+
+The engine preserves source transparency for alpha-capable outputs. It captures
+alpha after EXIF orientation is applied and before resizing, then rejoins the
+unchanged alpha plane after restoring the RGB result to the original dimensions
+and applying postprocessing. This also handles palette and colour-key PNG
+transparency; diffusion itself still receives RGB. Regression coverage lives in
+`test_invisible_engine.py::TestTransparency`.
+
+`get_device` in that module answers only `cuda` or `cpu`. An `mps` or `xpu` answer
+would travel one frame to the same CUDA-only refusal while costing a device probe,
+and reporting it implied an Apple-silicon or Intel-GPU path that does not exist.
+The refusal names the *resolved* device, so `device=None` on a CUDA-less host says
+`'cpu'` rather than `'None'`.
+
+The Python engine and the CLI now resolve the same defaults: the CLI forwards an
+unset `--adaptive-polish` and `--seed` as `None` and the engine applies the
+profile's answer, so a library caller and a CLI caller on one profile produce the
+same pixels. They diverged before, in opposite directions, for exactly this knob.
+
+The global and face prompts are calibrated model inputs, and the Canny edge map
+uses fixed thresholds of `_CANNY_LOW = 13` / `_CANNY_HIGH = 64`
+(`two_stage_pipeline.py`). Treat those values as behavioral compatibility
+contracts: a refactor must preserve them, and any deliberate change requires
+image-quality evaluation rather than only a unit-test pass. The prompt and
+edge-map regression guards are
+`test_qwen_zimage_pipeline.py::test_global_kwargs_use_lightning_and_diffsynth_controlnet_shape`,
+`::test_face_kwargs_use_project_zimage_settings` and
+`::test_canny_control_image_is_three_channel_and_detects_an_edge`.
+
+Regression coverage:
+
+- [`test_invisible_engine.py`](../tests/test_invisible_engine.py)
+- [`test_qwen_zimage_pipeline.py`](../tests/test_qwen_zimage_pipeline.py)
+- [`test_platform.py`](../tests/test_platform.py)
+
+### CPU offload
+
+Nothing calls Diffusers' `enable_model_cpu_offload` any more -- that belonged to
+the deleted single-stage profiles. `--cpu-offload` sets both residency fields, and
+they do not travel the same distance: the face field is read by the shared base and
+so applies to every profile, while the global field is read by `QwenZImagePipeline`,
+`Qwen21ZImagePipeline`, and `SdxlZImagePipeline`. `ChromaZImagePipeline` loads its
+global stack with a plain `.to(device)` and never consults it.
+
+`GLOBAL_OFFLOAD_PROFILES` in `watermark_profiles.py` is the list, and
+`global_offload_supported` the question; `WatermarkRemover._warn_if_global_offload_unsupported`
+warns ahead of the model load rather than at construction, because `auto` picks
+its engine per-image. An explicit `auto` preload uses the qwen-zimage fallback and
+therefore keeps global offload active before that resolution. Below
+`RESIDENT_FACE_MODEL_MIN_VRAM_GIB` the flag is a no-op for `chroma-zimage` -- the
+face stack was offloading anyway and the global one does not ask -- which is what
+the warning exists to say before a download starts.
+
+Residency is otherwise chosen from the card's total VRAM, once per stack:
+`resolve_global_model_residency` gates the mandatory Qwen stack at
+`RESIDENT_GLOBAL_MODEL_MIN_VRAM_GIB`, `resolve_sdxl_global_residency` gates the
+SDXL stack at `RESIDENT_SDXL_GLOBAL_MIN_VRAM_GIB`, and `resolve_face_model_residency`
+gates the optional Z-Image stack at `RESIDENT_FACE_MODEL_MIN_VRAM_GIB`.
+
+Below the global floor, `_qwen_vram_config` streams the stack from disk, which is
+what makes a 20B model runnable on a consumer card. At or above it, streaming is
+pure waste and the weights stay on the GPU. The difference is not marginal:
+DiffSynth offloads by dropping the weights to the meta device and re-reading every
+parameter through its `DiskMap` on the next onload, and the pipeline moves between
+text encoder, transformer and VAE on each pass. Measured on an H100 (80 GiB) in
+August 2026, a warm global pass took 37.3 s at 0.8 GiB resident with the streaming
+config, against 2.2 s at 28.7 GiB with the stack resident; both stacks resident
+peaked at 48.0 GiB. Faster storage cannot close that gap, because the cost is the
+reload itself rather than the read.
+
+The resident config deliberately passes no `"disk"` value anywhere. DiffSynth latches
+`disk_offload` once, from `offload_dtype`, so leaving the sentinel in place while
+pointing every device at CUDA would keep the meta-drop and re-read.
+
+Sequential SDXL offload receives the current CUDA device index explicitly, so
+its hooks use the same GPU as the residency probes, input tensors, and seeded
+generators. Omitting the index makes Diffusers select GPU 0 even after
+`torch.cuda.set_device(1)`. `test_streaming_uses_the_current_cuda_device` in
+`test_cpu_offload.py` covers automatic and forced streaming on nonzero devices.
+
+The SDXL stack (fp16 UNet, Canny ControlNet, both text encoders, the fp16-fix VAE)
+is ~8.8 GiB of weights, and the UNet and the ControlNet run together on every
+denoising step. Below the 12 GiB floor `_load_global` fuses the Lightning LoRA on
+the CPU and then calls `enable_sequential_cpu_offload`; the order matters, because
+the offload hooks stream their own copy of each weight and a later fuse would never
+reach it. Measured on an RTX 5060 Laptop (8 GiB, WSL2, 16 GiB system RAM) in
+October 2026, one 1672x941 global pass at strength 0.15:
+
+| Placement | Warm pass | Peak VRAM | Peak system RAM |
+|---|---|---|---|
+| resident `.to(device)` (previous behaviour) | did not finish in 10 min | 7.9 GiB used, spilling | -- |
+| `enable_model_cpu_offload` | 237 s | 9.2 GiB reserved on an 8 GiB card | 12.4 GiB |
+| group offload, block level, CUDA stream | 92 s, or hung | 12.4 GiB reserved | 15.6 GiB |
+| group offload, leaf level, CUDA stream | 7.8 s, or hung | 5.6 GiB | 15.7 GiB |
+| group offload, leaf level, `low_cpu_mem_usage` | 21.4 s | 5.6 GiB | 9.4 GiB |
+| `enable_sequential_cpu_offload` | 12.8 s | 3-4 GiB | 8.5 GiB |
+
+The resident and model-offload rows did not fail: under the Windows display driver
+CUDA falls back to shared system memory, so PyTorch reserved more than the card
+holds and the run crawled instead of raising. The streamed group-offload variants
+pin every weight in host memory up front; on a 16 GiB machine that left the run
+finishing or hanging depending on what else held RAM, which rules them out as a
+default. All completed placements produced bit-identical images.
+
+Fusing on the CPU instead of on CUDA rounds 788 of the UNet's 3256 fused tensors
+differently, by at most one fp16 ulp (1.2e-4). On the pass above that moved the
+output by a mean of 0.16 levels (PSNR 54.3 dB against a CUDA-fused, equally
+streamed run). Cards at or above the floor keep the CUDA fuse and therefore the
+previous pixels; only a streamed run, automatic or forced with `--cpu-offload`,
+sees the difference.
+
+Regression coverage:
+
+- [`test_cpu_offload.py`](../tests/test_cpu_offload.py)
+- [`test_qwen_zimage_pipeline.py`](../tests/test_qwen_zimage_pipeline.py)
+
+### Qwen plus Z-Image
+
+The profiles are siblings of one shared recipe rather than a chain:
+[`_internal/two_stage_pipeline.py`](../src/remove_ai_watermarks/_internal/two_stage_pipeline.py)
+holds `TwoStageZImagePipeline`, the base that owns everything profile-independent
+(the Z-Image face stage with YuNet detection and SAM masks, sizing, compositing,
+the prompt cache, and the `run`/`preload` orchestration). A profile subclass
+implements `_load_global` and `_run_global` for its regeneration model and may
+implement `_vae_roundtrip` to expose that stack's VAE as a verified-text donor.
+Optional `_prepare_regeneration` and `_finish_regeneration` hooks support
+request-local extensions before inference and after the shared face stage;
+their base implementations are identities for the registered profiles. Tests
+assert that run, preload and face methods remain the same objects on every
+subclass. Adding a global stage means implementing those hooks, not inheriting
+from another profile's pipeline.
+
+The unregistered experimental `Qwen21AlignmentZImagePipeline` in
+`_internal/qwen_alignment_pipeline.py` reuses the fixed Qwen-2.1 global kernels
+and adds bounded geometry after the completed baseline. Its required
+`perceptual_metric(reference, candidate)` callback supplies a local,
+nonnegative finite distance with lower values indicating greater fidelity.
+Both full-frame RGB MSE and that distance must improve; ties, regressions or
+invalid metric values return the exact baseline image object. Callback images
+are owned copies. Per-request `last_quality` diagnostics reset before inference.
+An optional `line_detector` callback supplies source-image geometry on an owned
+copy before inference; integer boxes are frozen and checked against the source
+bounds. After alignment selection, `text_shapes.restore_contour_glyphs` proposes
+neutral text contours on flat backgrounds using regenerated colors, excluding
+protected faces. The text proposal must improve both metrics over the completed
+baseline and must not regress either metric against the selected alignment.
+Rejected or unchanged proposals retain the exact previous image object.
+`last_text_quality` records this separate decision and resets per request.
+A subsequent color pass considers only lines rejected for colored/low-contrast
+foregrounds, using `restore_contour_glyphs(..., allow_colored=True)` on the
+selected neutral-text output. It retains the flat-background color-line model,
+grouped local source-error guard and regenerated foreground/background colors.
+Both full-frame RGB MSE and perceptual distance must strictly improve over that
+parent. Invalid metrics, ties, regressions or unchanged proposals retain the
+exact parent object. Independent support-mask and protected-face postconditions
+run before selection. Per-request `last_color_quality` records the result and
+resets before inference. The default helper policy remains neutral-only.
+Neither geometry proposals nor the metric gates establish semantic text accuracy.
+Tiling, verified-text combinations and sides below 64 pixels are uncalibrated
+and rejected before the global pass in this strict experimental class. The
+registered fidelity subclass described above provides compatible fallback;
+the strict class itself has no factory entry. Quality selection does not
+establish removal effectiveness.
+
+`_internal/image_alignment.py` contains the CPU-only displacement and weighting
+helpers. Low-pass grayscale controls DIS optical flow; source colors never
+enter the output directly. A bounded smooth flow preserves supplied baseline
+face rectangles, and coarse local-error weights attenuate displacement before
+one Lanczos resampling. The gradient bound is reapplied after weighting. The
+helpers do not promise improvement at every pixel or region, nor any watermark
+verdict. Exact output bytes need independent provider verification.
+
+[`_internal/qwen_zimage_pipeline.py`](../src/remove_ai_watermarks/_internal/qwen_zimage_pipeline.py)
+implements both fixed CUDA-only Qwen two-stage profiles (`QwenZImagePipeline` for
+`qwen-zimage` and `Qwen21ZImagePipeline` for `qwen21-zimage`) directly on
+`TwoStageZImagePipeline`:
+
+1. Qwen Image (`Qwen/Qwen-Image-2512` + fused 4-step Lightning LoRA + `InstantX/Qwen-Image-ControlNet-Union` in `qwen-zimage`; unfused `Qwen/Qwen-Image-2.1` + `madebyollin/texture-fix-vae-for-qwen-image-2.1` + `alibaba-pai/Qwen-Image-2.1-Fun-Controlnet-Union` in `qwen21-zimage`) with Canny conditioning regenerates the frame in 4 steps under `FlowMatchScheduler("Qwen-Image-Lightning")`.
+2. YuNet locates faces, SAM builds masks, and Z-Image regenerates the selected
+   face regions.
+
+The profile rejects a custom model identifier. Its global and face model stack
+is fixed by the implementation. When tiling is enabled, only the global stage
+is tiled; the face stage runs once after the tiles are blended. Unlike 20B
+`qwen-zimage` (`_build_qwen_vram_config`, which stores disk/CPU weights in
+`torch.float8_e4m3fn`), 7B `qwen21-zimage` uses `_build_qwen21_vram_config` to
+keep its stack in `torch.bfloat16` (`cuda` when resident, `cpu` -> `cuda` when
+`--cpu-offload` is enabled) and registers `QwenImage21ZeroCenterRMSNorm` in
+DiffSynth's `VRAM_MANAGEMENT_MODULE_MAPS` for `QwenImage21ControlNet`:
+`madebyollin/texture-fix-vae-for-qwen-image-2.1` rescales its decoder weights by
+`1 / 512` (`2^-9`), which underflows unscaled `float8_e4m3fn` (`DiskMap` load-time
+cast) to zero and decodes a flat gray frame (`test_qwen21_vram_config_preserves_bfloat16_to_prevent_texture_fix_vae_underflow`
+guards this).
+
+#### How the face stage actually composites
+
+The mechanism is easy to misread from the parameter names, so state it plainly.
+`_run_faces` crops the expanded box from the **original** image, resizes it toward the
+768 px face guide, runs Z-Image over **the entire crop**, and resizes back. Before
+merging, `_match_face_tone` removes the smooth RGB difference between the two
+independently regenerated crops. It adds a Gaussian low-pass of `global - detail`
+to the detailed crop, with the spatial scale derived from the crop dimensions.
+This keeps the face stage's fine texture in the global stage's color frame;
+feathering alone would turn a color mismatch into a jaw or neck patch. The color
+donor is the regenerated global result, never the original source pixels.
+`composite_face` then cross-fades on a Gaussian-blurred SAM mask with `feather=10`.
+Pixels beyond the mask's feather support remain exactly the global result.
+
+`test_face_stage_matches_global_tone_without_losing_regenerated_detail` exercises
+the connected face stage with independently colored model output. It guards
+constant and spatially varying casts, retained fine texture, and untouched pixels
+outside the mask support. These controlled model-output tests do not replace
+CUDA end-to-end image review or provider-oracle validation of changed outputs.
+
+Two consequences follow, and both matter when tuning:
+
+- **Everything inside the crop is regenerated, including the pixels the mask later
+  discards.** The generation is therefore conditioned on a fully noised neighbourhood,
+  not on an intact one. An alternative design passes the mask into the sampler as a
+  latent noise mask, so only masked pixels are ever denoised and the edge transition
+  happens inside the generation rather than as a post-hoc blend. That approach has
+  never been tried in this runtime and is an open lever, particularly since the face
+  stage is the largest measured quality contributor: removing it costs 3.5 dB inside
+  the face boxes on one fixture and 6.1 dB on another.
+- **`FACE_DENOISE_SCALE = 0.5` is best understood as compensation for the above.**
+  Regenerating a whole crop and blending is a stronger operation than denoising only
+  inside a mask, so the halved strength brings the visible result back into range. Read
+  it as coupled to the compositing design rather than as an independently calibrated
+  constant: changing the compositing without revisiting the scale would change output
+  strength by roughly a factor of two.
+
+The maintained implementation preserves the previously oracle-tested strength,
+conditioning, crop, and sampler parameters as compatibility contracts. Its Python
+orchestration, YuNet integration, SAM selection, masks, sizing helpers, and pixel
+compositing are implemented for this runtime. Changing a calibrated model input
+requires the same provider-oracle and identity evaluation as a model change.
+
+#### Verified text restoration
+
+[`_internal/text_restoration.py`](../src/remove_ai_watermarks/_internal/text_restoration.py)
+implements the opt-in `vae-glyphs` stage. A versioned manifest carries manually
+reviewed strings and source-space line boxes in schema 1, or verified source-space
+geometry alone in schema 2, plus a SHA-256 over decoded RGB width, height, and pixels.
+Validation happens before model loading. The library never treats OCR confidence as
+verification, and geometry-only operators do not need to invent text or script fields.
+
+When enabled, the one profile selected before model loading reconstructs the source
+once through its already loaded VAE, runs the ordinary global and face stages, and
+calls the shared restoration compositor. Qwen, SDXL, and Chroma implement this donor
+hook. The optional Qwen-only fidelity anchor first blends 15% of the VAE
+reconstruction into the clean result; it is off by default because the blend returned
+detector-visible OpenAI SynthID in the measured poster fixtures. The compositor derives
+binary source and candidate silhouettes, groups nearby lines, uses LaMa for the initial
+and residual-glyph erase passes, paints fresh silhouette edges, then copies the profile-VAE
+core with a 0.5-pixel feather. The evaluation script
+imports these same mask and compositing helpers so the two implementations cannot
+silently drift. Silhouette crops start 12% of line height beyond each horizontal
+side, then expand each side independently while a foreground component anchored
+inside the detector box still reaches that boundary, up to one line height. They
+extend 8% above and 25% below. The anchored-component gate covers clipped leading
+flourishes, trailing punctuation, icons, and descenders without walking into
+disconnected decoration or background texture.
+
+The stage is deliberately narrower than the engine: it rejects tiles, resolution
+caps, humanize, unsharp, and explicitly enabled adaptive polish. An unset polish
+value resolves to off in this mode, including for SDXL, because those combinations change
+geometry or final pixels after the verified layer and have no measured oracle result.
+It remains opt-in because annotations are manual and provider verdicts apply only to
+the exact tested output hashes, not to the mechanism in general.
+
+The first full-path H100 check on 2026-08-31 ran each generative engine exactly
+once per source and used that SAME engine's VAE donor; it did not compose Qwen and
+Chroma in one production result. On the two verified multilingual OpenAI posters,
+restoration reduced PaddleOCR CER from 0.303 to 0.160 and 0.279 to 0.136 for Qwen,
+and from 0.213 to 0.130 and 0.204 to 0.108 for Chroma. PSNR improved on all four
+arms (Qwen 26.1 to 29.9 dB and 27.7 to 31.6 dB; Chroma 29.6 to 33.1 dB and 29.7
+to 32.9 dB). The verified CJK Google fixture is the counterexample that prevents
+an unconditional quality claim: Qwen CER stayed 0.074, while Chroma moved from
+0.037 to 0.074 despite better LPIPS, SSIM, PSNR, and text-box pixel error. The
+stage is therefore implemented and fidelity-positive on both OpenAI sources, but
+not assumed to improve every OCR reading. This is a fidelity check, not a provider
+oracle certification. These restoration-study CER values are distinct from
+the longer-string-normalized NED emitted by `scripts/fidelity_metrics.py`;
+the latter's former CER label was corrected without changing its values.
+Exact output hashes and per-box metrics are produced by
+the `chroma_text_restoration_study.py` harness (kept outside this repository)
+under the gitignored
+`out/text-restoration-engine-study/` directory.
+
+The 2026-09-15 rerun added the SDXL donor implementation and exercised all three
+profiles on the same three manifests. SDXL improved text-box MAE from 11.319 to
+7.970 and from 10.704 to 7.657 on the two OpenAI posters, while PSNR rose from
+25.83 to 29.24 dB and from 26.17 to 29.04 dB. On the tracked Google CJK carrier
+(`4affd7f27767a445db6abf741355743ba8d95108ad922c9fff045feed8492236`, already
+recorded as SynthID-positive), SDXL at the calibrated 0.50 strength improved
+text-box MAE from 10.738 to 8.564 and PSNR from 23.93 to 24.00 dB. The exact
+restored output
+`035e4919e1d84129a347006c98f19eb4431eb5772788f6d2097b94a2c6baec84`
+was submitted to the Google Gemini oracle after provenance stripping preserved
+its decoded pixels; the sanitized upload hash was
+`3e4f06274a7b735f7d06863fd54dc8146f60aeb9cc8315f86294180deb660b82`.
+The oracle returned `not_detected` on 2026-09-16. This
+certifies that one carrier, manifest, seed, runtime, and output hash; it does not
+turn the compositor into a provider-wide guarantee.
+
+A matched stage-isolation check on the 18-face Gemini portrait grid confirms the
+division of responsibility. The visible-cleaned, metadata-stripped control and the
+Z-Image face-only output were both SynthID-positive; Qwen global-only and the full
+Qwen-then-Z-Image output were both clean. The face stage raised identity cosine from
+0.589 to 0.852 and reduced face LPIPS from 0.217 to 0.050 without reintroducing a
+detectable whole-image signal. Thus Z-Image is a masked fidelity repair stage here,
+not the watermark-removal stage. Exact hashes, metrics, strengths, and the one-fixture,
+one-seed caveat are recorded in
+[`data/evaluations/fidelity/face-stage-isolation-2026-08-13.csv`](../data/evaluations/fidelity/face-stage-isolation-2026-08-13.csv).
+
+The public Synthid-Bypass v2 graph was subsequently audited at upstream commit
+`3007d035`. Its saved-output path confirms the same division: Qwen-Image-2512
+Lightning plus Canny is global, and Z-Image Turbo exists only inside the masked
+face detailer. The connected face path is YOLOv8-face plus SAM; the MediaPipe nodes
+described by the upstream README and the 1.2-megapixel normalization node do not
+reach `SaveImage`. Upstream also applies its adaptive face strength directly,
+whereas this implementation multiplies it by `FACE_DENOISE_SCALE = 0.5`.
+
+A close reproduction on the same portrait fixture kept the control positive and
+made both Qwen global-only and full Qwen-then-Z-Image outputs clean. Applying the
+upstream-strength face pass raised identity from 0.589 to 0.783 and reduced face
+LPIPS from 0.217 to 0.083, but remained worse than this profile's 0.852 and 0.050.
+The published upstream pair 12 was also independently checked positive before and
+clean after, with 0.975 identity. Exact workflow provenance, hashes, metrics,
+oracle outcomes, and the DiffSynth/GGUF, scheduler, detector, and seed caveats are
+recorded in
+[`data/evaluations/fidelity/upstream-v2-reproduction-2026-08-13.csv`](../data/evaluations/fidelity/upstream-v2-reproduction-2026-08-13.csv).
+
+### Chroma1 plus Z-Image
+
+[`_internal/chroma_zimage_pipeline.py`](../src/remove_ai_watermarks/_internal/chroma_zimage_pipeline.py)
+runs the same two-stage recipe on a Chroma1-HD (`lodestones/Chroma1-HD`,
+Apache-2.0) global pass through diffusers' `ChromaImg2ImgPipeline`. It is the
+answer to issue #88's FLUX.2 request through the model that actually exposes
+strength-controlled img2img in that family. diffusers has since added
+`Flux2KleinInpaintPipeline` with a real strength path. A FLUX.2 klein 4B global
+stage was measured on 2026-09-27 and not adopted: the stock pipeline feeds the
+clean source back as reference tokens and keeps SynthID, and without them klein
+clears both vendors only at lower face and CJK-text fidelity than `qwen-zimage`.
+The full research record is
+[`chroma1-engine-research.md`](chroma1-engine-research.md).
+
+The profile also implements the shared verified-text donor hook through its already
+loaded Chroma VAE. It edge-pads native geometry to the /16 latent grid, takes the
+deterministic mode of the encoder distribution rather than sampling it, decodes with
+Diffusers' own image processor, and crops back to the exact source dimensions. Thus
+`auto` still loads and runs only the profile selected by the measured vendor table;
+the presence of a manifest does not introduce a second generative model or override
+that decision. A CPU smoke run against the official Chroma1-HD `AutoencoderKL`
+weights on 2026-08-31 verified the real encode/decode contract and exact restoration
+of a non-grid-aligned source size; model-free tests pin mode-not-sample and padding.
+Chroma-specific full-pipeline provider-oracle certification remains an output-hash
+measurement, not something either check can establish.
+
+The profile swaps only the global stage (same inheritance invariant as
+sdxl-zimage, asserted by the same test shape). Three things are bound to the
+calibration and must not drift: the NEUTRAL prompt (`high quality, sharp,
+detailed, faithful to the original` -- deliberately NOT the shared canny-stage
+prompt, which was never calibrated against Chroma1), guidance 5.0, and the
+calibrated `ceil(4 / strength)` requested-step schedule.
+`CHROMA_NOMINAL_STEPS = 4` is a nominal count: Chroma rounds the start
+index, so strengths 0.09 and 0.17 execute five steps, while 0.20, 0.125,
+and 0.50 execute four. Preserve those requests rather than changing the
+calibration to force four effective steps. There is no Canny
+conditioning: the floors were measured on a plain strength pass.
+
+The flat vendor floors (`CHROMA_ZIMAGE_*_STRENGTH` in watermark_profiles):
+OpenAI 0.20, Microsoft 0.125, Google 0.50, and Meta 0.17. The source-fresh
+Google sweep supersedes the older 0.40 zero-face / 0.125 face split: fresh CJK
+remained detected at 0.40, and a face-plus-text carrier did not support treating
+face presence as evidence for the easy arm. The runtime has no independently
+measured text-content gate, so every Google carrier now uses the replicated global
+floor. The matched-strength addendum in the research doc remains useful history:
+at the strength each image actually needs, Chroma1 regenerates better almost
+everywhere except face identity (which the inherited Z-Image face stage supplies),
+but high flat floors can destroy dense text and face identity. A Meta arm was measured
+on 2026-08-30/31 (docs/chroma1-engine-research.md, expansion section) and
+does not ship: first-cleans from 0.03 to 0.10 form a continuum,
+`flat_ratio` overlaps the hard and easy clusters, and a high-flat
+easy-arm would misroute the harvest-1 portraits. The worst seed-0
+first-clean is still 0.10; botanical seeds 1 and 2 stay DETECTED at
+that rung, which is the margin the 0.17 floor already holds. A later OpenAI
+holdout invalidated the flat 0.09 conclusion: two carriers first cleared under
+Chroma at 0.10625 and 0.1375, while qwen-zimage cleared both at its existing
+0.07675 operating point. A later source-fresh n=8 Qwen calibration raised its
+OpenAI floor to 0.15625; that does not change the engine decision. Explicit
+Chroma uses the spread-derived 0.20, verified clean three times on both holdout
+carriers, and `auto` routes OpenAI to qwen-zimage.
+
+An experimental source-restoration path found a narrower positive operating
+point for complex savory-food photographs on 2026-10-19. Development first ran
+Chroma at strength 0.125 and seed 0, then kept only a model-specific frequency
+band from that candidate in all YCrCb channels with 20% cosine transitions. The
+fixed Flare band covered periods from 32 to 10 pixels; the fixed Sunburst band
+covered periods from 32 to 8 pixels. The development set produced three joint
+quality-and-oracle passes in four food scenes, with both dated models
+represented, before any qualification sources were generated.
+
+The preregistered qualification then used four new fixed savory-food prompts on
+each model. All eight metadata-free source controls returned official OpenAI
+SynthID `detected`. Six of eight final outputs returned `not_detected`, five of
+eight passed the frozen quality gates, and the same five passed both conditions:
+2/4 Flare and 3/4 Sunburst. Every quality-positive output was therefore also
+oracle-negative. Those five had minima of 30.14 dB grayscale PSNR, 0.9289
+grayscale SSIM, and 0.9151 tolerant edge F1. The sixth oracle-negative output,
+a Sunburst shakshuka scene, missed the fixed PSNR and SSIM gates, so it cannot
+raise the joint result to the preregistered 6/8 target. All eight source/output
+pairs passed native 1024 x 1024 visual review. The hash-bound result is
+`.local-eval/openai-causal-watermark-benchmark-v1/attempt-18-savory-food-qualification-result.json`
+(SHA-256 `43c86aed9c1c5bea8ed86ec8850a0384125a4fd69a0fe447b8a6fbb3e9436f1b`).
+Postqualification development first applied one deterministic rule to the three
+quality failures: keep the default band when it passes, otherwise choose the
+fixed-grid band that retains the largest RGB RMS candidate delta while passing
+all three quality gates. All three strength-0.125 candidates remained official
+`detected`. Raising the base strength to 0.15 for two priority rows and 0.20 for
+all three also produced quality-positive outputs, but all five remained
+`detected`. Further quality-positive variants isolated phase and magnitude,
+changed the phase band, blended phase with magnitude, masked the residual by
+texture, and clipped its vector length; global color correction did not improve
+the quality frontier. Every one of the nine additional oracle checks remained
+`detected`. The 17 bound development checks are recorded in
+`.local-eval/openai-causal-watermark-benchmark-v1/attempt-18-postqualification-development-result.json`
+(SHA-256 `8f9484fb161d855e7ce2f3056bb8f1ec177bebdd615a18cc354be9173ed1d3b0`).
+These local variants therefore add no sixth joint pass through strength 0.20;
+the next qualification changes content coverage rather than tuning these three
+postqualification failures further.
+This qualifies a five-source, two-model savory-food operating point for further
+research. It does not establish a content-wide removal rate, change Chroma's
+flat 0.20 OpenAI floor, add source restoration to the installed pipeline, or
+cover other content, dimensions, strengths, seeds, or model releases.
+
+A preregistered source-fresh expansion then tested the positive brothy-bowl
+subset rather than tuning the failed rows. Four new prompts - laksa, chicken
+noodle soup, miso ramen, and mandu-guk - were generated once on each dated
+model. The method and success rule were frozen before generation: Chroma at
+strength 0.125 and seed 0, the same model-specific bands and transition, at
+least six joint passes overall, and at least two per model. All eight
+metadata-free source controls returned official OpenAI SynthID `detected`; all
+eight final outputs returned `not_detected` and passed the fixed quality gates,
+for 4/4 Flare, 4/4 Sunburst, and 8/8 overall. C2PA was absent from every source
+and output check. The final candidates had minima of 30.12 dB grayscale PSNR,
+0.9095 grayscale SSIM, and 0.8838 tolerant edge F1, and all eight pairs passed
+native 1024 x 1024 visual review. The hash-bound result is
+`.local-eval/openai-causal-watermark-benchmark-v1/attempt-19-brothy-bowl-qualification-result.json`
+(SHA-256 `0fb120cc331029b3fa62e9cc91aa01de64c5b467b45d59b53faa213a1dec43b1`).
+This qualifies the frozen compositor for these brothy-bowl photo prompts on the
+two dated models. It does not cover other food structures, arbitrary scenes or
+dimensions, different Chroma settings, other model releases, or the installed
+removal path. The initial standalone implementation required the exact dated
+source model. A clean invocation reproduced all eight oracle-checked
+qualification outputs byte-for-byte; the bound parity report is
+`.local-eval/openai-causal-watermark-benchmark-v1/attempt-19-script-parity-result.json`
+(SHA-256 `066a169557dfc327257dd67dbf0cfe323a20cf1628e474bfa17e74bd3d7dc0c8`).
+
+A later development pass replaced the model selector with one deterministic
+quality-adaptive rule. For each Chroma strength-0.125 candidate, it evaluated a
+frozen high-period grid from 4 to 16 pixels under the same 32-pixel low cutoff,
+kept variants passing PSNR >= 30 dB, SSIM >= 0.90, and tolerant edge F1 >= 0.75,
+then selected the largest RGB RMS change. A one-seed source-fresh qualification
+reached 13/16 joint passes. Development on only those three misses added seed 1
+and cleared two of them, so the next method was frozen before another source
+set was generated: evaluate seeds 0 and 1, maximize RGB RMS change among all
+quality-positive variants, then break exact ties by lower seed and smaller high
+period. The rule has no model input.
+
+The preregistered two-seed qualification generated eight new brothy-bowl prompts
+once on each dated model. The success rule required at least 14/16 joint passes,
+at least 6/8 per model, 16/16 detected source controls, 16/16 numeric quality
+passes, and 16/16 native visual passes. All 16 source controls returned official
+OpenAI SynthID `detected`; all 16 selected outputs returned `not_detected` and
+passed every other condition, for 8/8 Flare, 8/8 Sunburst, and 16/16 overall.
+The final candidates selected seed 0 seven times and seed 1 nine times. Their
+metric minima were 30.02 dB grayscale PSNR, 0.9000 grayscale SSIM, and 0.8280
+tolerant edge F1. The hash-bound result is
+`.local-eval/openai-causal-watermark-benchmark-v1/attempt-26-two-seed-qualification-result.json`
+(SHA-256 `79f36d144d90aa92103ea8b11a42560cbf5655fd282eb917327ab03d8b08d089`).
+
+The next preregistered source-fresh qualification kept that selector unchanged
+and tested an adjacent class of 16 non-brothy complex savory-food photographs,
+with the same eight prompts generated once on each dated model. All 16
+metadata-free source controls returned official OpenAI SynthID `detected`, and
+all 16 selected outputs passed the fixed quality gates and native visual review.
+Only one output returned `not_detected`, however: 1/8 Flare and 0/8 Sunburst,
+for 1/16 overall against a frozen target of 12/16 and at least 6/8 per model.
+The metric minima were 30.02 dB grayscale PSNR, 0.9330 grayscale SSIM, and
+0.9234 tolerant edge F1. C2PA was absent from all 32 checks. The hash-bound
+result is
+`.local-eval/openai-causal-watermark-benchmark-v1/attempt-27-two-seed-qualification-result.json`
+(SHA-256 `8752cfd630638d6bed647d3b84a31d4580aa6180a7c19be2d0254fe51b89b1d6`).
+The qualified operating point therefore remains limited to the tested
+brothy-bowl structure; RGB RMS maximization under the three fidelity gates is
+not a sufficient content-independent selector for the adjacent food class.
+
+Development on that completed corpus isolated the next engineering target.
+None of the 32 full Chroma candidates passed the numeric gates; even their
+maxima were only 24.17 dB PSNR and 0.7366 SSIM. Of 13 candidates that received a
+usable official response before the API allowance was exhausted, 11 returned
+`not_detected` and two returned `detected`. The remaining 19 have no usable
+verdict, so 11/13 is a partial diagnostic rather than a removal rate. The bound
+record is
+`.local-eval/openai-causal-watermark-benchmark-v1/attempt-27-full-chroma-development-result.json`
+(SHA-256 `c2604b160ed0b5b66b9f9bd5c5b7db640f29e7f7a1c35e82fa351e8d4f0de57d`).
+
+A development-only compositor then restored the source Y channel and retained
+the full Chroma candidate's Cr and Cb channels. A metric-only frozen rule chose
+the largest chroma fraction passing every gate, then the lowest RGB distortion
+and lower seed; all 16 rows selected the full chroma fraction. All 16 passed
+native visual review, with minima of 51.99 dB PSNR, 0.9996 SSIM, and 0.9964 edge
+F1. After the API allowance recovered, all 13 submitted rows returned official
+`detected`; the other three retained their explicit rate-limit refusals. The
+maximum possible result is therefore only 3/16 even if every refused row were
+clean, with corresponding maxima of 2/8 Flare and 1/8 Sunburst, so the frozen
+12/16 and 6/8-per-model target is mathematically unreachable. The Web surface
+separately returned three `indeterminate` responses and 13 route-level
+`unreachable` results, none of which is interpreted as clean. In this matrix,
+restoring the complete source luminance channel restored fidelity but retained
+the detectable signal. Its bound record is
+`.local-eval/openai-causal-watermark-benchmark-v1/attempt-28-source-luma-development-result.json`
+(SHA-256 `0bb847cc21cb4e25808e60798a3b8c25b963b097d002890a096978434bc8d8e4`).
+
+The next development pass retained the full Chroma candidate's chroma channels
+and replaced only low-frequency luminance with the candidate, restoring source
+luminance above a metric-selected radial cutoff. The frozen grid selected a
+12-pixel period once, 16 pixels ten times, and 20 pixels five times. All 16
+outputs passed the numeric gates and native 2048 x 1072 visual review, with
+minima of 30.07 dB PSNR, 0.9533 SSIM, and 0.9479 edge F1. All 16 nevertheless
+returned official `detected`, split 8/8 Flare and 8/8 Sunburst. Restoring the
+full source amplitude above one hard luminance cutoff therefore does not provide
+the required separation on this corpus. The bound record is
+`.local-eval/openai-causal-watermark-benchmark-v1/attempt-29-luma-detail-development-result.json`
+(SHA-256 `3d0095986aeec1dbb473832953f642b97b854ada51d39ab3c9acc7ba1fda71b5`).
+
+A final development pass attenuated rather than fully restored the source's
+high-frequency luminance. A metric-only grid selected the seed, cutoff, and
+source gain; all 16 selected outputs passed the fixed quality gates, with minima
+of 30.06 dB PSNR, 0.9533 SSIM, and 0.8993 edge F1. The local report is
+`.local-eval/openai-causal-watermark-benchmark-v1/attempt-30-attenuated-luma-detail-development.json`
+(SHA-256 `00e620b1bc9da26e6eb9e91b2f9a1ef7213423652492d017ba1bcc8676d1d012`).
+The bounded official pass stopped after the provider allowance was exhausted:
+six usable responses all returned `detected`, one request returned an explicit
+rate-limit refusal, and nine frozen rows were never submitted. This partial
+coverage is not a removal rate, but six detected results provide no positive
+reason to continue spending oracle calls on this compositor family. Together
+with attempts 28 and 29, it closes the source-restoration coefficient loop on
+this consumed corpus; another scalar interpolation is not the next research
+step.
+
+[`scripts/restore_source_band.py`](../scripts/restore_source_band.py) now
+implements that model-independent selector. It requires the source plus the
+seed-0 and seed-1 Chroma candidates, refuses dimensions outside the qualified
+1024 x 1024 scope or sample-type drift, writes a new metadata-free PNG, and
+records its inputs, selected seed and cutoff, metrics, and output by hash in a
+JSON report. A clean invocation reproduced all 16 oracle-checked qualification
+outputs byte-for-byte; the bound parity report is
+`.local-eval/openai-causal-watermark-benchmark-v1/attempt-26-script-parity-result.json`
+(SHA-256 `7a5a2084b02fb73c1dfed2c7b6962f222b76ca4754c8f3bf75aeab18a7aeff95`).
+
+```bash
+uv run --script scripts/restore_source_band.py \
+  SOURCE.png CHROMA_SEED_0.png CHROMA_SEED_1.png OUTPUT.png
+```
+
+A separate content-balanced check on 2026-08-31 tested the exact production
+OpenAI and Meta floors over 19 prompt-matched image strata per provider. Each
+engine ran in its own sequential H100 invocation, and the comparison isolated
+the global stage because the shared face repair does not change with this choice.
+On OpenAI content, Chroma won SSIM and PSNR on 19/19 pairs, MAE on 18/19, edge
+F1 on 15/19, and LPIPS on 12/19. On Meta content, Qwen won LPIPS and edge F1 on
+18/19 pairs; Chroma's better PSNR on 16/19 did not overcome its systematically
+worse perceptual and edge preservation at the higher required floor. Exact
+two-sided sign-test p-values were 3.8e-6 for the OpenAI SSIM and PSNR directions
+and 7.6e-5 for the Meta LPIPS and edge-F1 directions. The tracked discovery
+inputs and manifests are in
+[`data/evaluations/engine-selection/`](../data/evaluations/engine-selection/),
+the run is reproduced by the `engine_selection_study.py` harness (kept outside
+this repository), and paired analysis
+by `scripts/analyze_engine_selection_study.py`. These content files were locally
+re-encoded and are not watermark oracles; they validate fidelity at already
+oracle-calibrated floors, not removal by themselves. No content-stratum override
+is supported by this pass, so `auto` keeps the measured provenance-cohort table.
+
+### SDXL plus Z-Image
+
+[`_internal/sdxl_zimage_pipeline.py`](../src/remove_ai_watermarks/_internal/sdxl_zimage_pipeline.py)
+runs the same two-stage recipe on an SDXL global pass. `SdxlZImagePipeline`
+subclasses `TwoStageZImagePipeline` and implements the global stage
+(`_load_global`, `_run_global`) plus the deterministic verified-text VAE donor, so
+the face stage is inherited rather than copied
+and cannot drift between the profiles; a test asserts the shared methods are the
+same objects.
+
+Four things are architecture-bound and swap with the model: the ControlNet
+(`xinsir/controlnet-canny-sdxl-1.0`), the four-step distillation LoRA
+(`ByteDance/SDXL-Lightning` at its documented strength 1.0, not the reference graph's
+0.8, which belongs to a different LoRA), the sampler (Euler with trailing spacing, no
+AuraFlow shift), and the latent grid (8 px against Qwen's 16).
+
+**Strength is architecture-bound too, and that is the easy mistake.** An SDXL global
+pass can leave SynthID at the strength Qwen needs. The source-fresh 2026-09-15
+matrix found its limiting Google CJK carrier detected through 0.45 and clean at
+0.50, with independent flat-text and face-plus-text replication at 0.50. So this
+profile takes a vendor policy (`SDXL_ZIMAGE_OPENAI_STRENGTH` 0.15,
+`SDXL_ZIMAGE_GEMINI_STRENGTH` 0.50, unknown following Google) rather than
+`resolution_adaptive_denoise`. Flat values are what was measured; no size dependence
+has been established for this stage, so none is asserted.
+
+#### Cross-profile strength sweep, 2026-09-14
+
+A fresh single-source, seed-0 sweep compared qwen-zimage, chroma-zimage, and
+sdxl-zimage on the same provider-specific carriers. The original content matrix covered
+photorealistic scenes, flat low-detail art, single and multiple faces, dense Latin,
+CJK and Cyrillic text, multilingual posters, and faces plus text. Meta completed
+48/48 real variants, Microsoft 12/12, the original OpenAI sweep 36/36, and Google
+44/48. Thirteen unique adaptive OpenAI extension candidates later closed the two
+missing content quadrants. The minimum
+tested global strengths that cleared every completed stratum were:
+
+| Provider | qwen-zimage | chroma-zimage | sdxl-zimage |
+| --- | ---: | ---: | ---: |
+| OpenAI | 0.06 | 0.12 | 0.06 |
+| Microsoft | 0.10 | <= 0.04 | <= 0.08 |
+| Meta | 0.06 | 0.10 | <= 0.08 |
+| Google | 0.35 | 0.50 | 0.50 |
+
+`<=` means the first tested rung already cleared, not that its lower boundary is
+known. Google qwen cleared both CJK and Cyrillic only at 0.35; its face series was
+non-monotonic. Google SDXL cleared Cyrillic at 0.35 after detections through 0.28,
+but CJK remained detected at 0.35, 0.40, and 0.45 before clearing at 0.50. Google
+Chroma CJK remained detected through 0.40 and cleared at 0.50; Cyrillic cleared at
+0.40. Chroma face+text first cleared at
+0.22 after detections at 0.08 and 0.16; the face carrier cleared at 0.22 after a
+detection at 0.08. A recovered-quota recheck on 2026-09-15 also detected the face
+carrier at 0.16, closing that tested bracket at `0.16 detected -> 0.22 clean` and
+showing that the shipped 0.125 face arm is too low for this carrier. These are
+candidate rungs at this stage of the study, not replacement defaults: there is one
+source and one seed per case. The independent three-carrier replication below later
+closed the production seed-0 decision; size, crop/resize, JPEG, local-edit, and broader
+multi-seed robustness remain separate holdouts.
+
+The original OpenAI set had faces-only and multilingual text-only carriers but no
+explicit no-face/no-text carrier. A fresh 1536x1024 photorealistic rocky-coast scene
+closed that stratum on 2026-09-15. The official OpenAI verifier found Qwen 0.04 and
+Chroma 0.10, then cleared Qwen 0.06 and Chroma 0.12. It found SDXL 0.04 and cleared
+0.06. These are 0.02-grid brackets, not mathematical minima. The public Web verifier
+settled the earlier points and exposed SynthID separately from C2PA. A later Chroma
+0.12 Web request remained in `Verifying` for more than 90 seconds, so it was recorded
+as indeterminate; the preferred official Content Provenance API returned
+`not_detected` for that same processed source hash. Three independent official API
+requests returned HTTP 200 for Chroma 0.12, SDXL 0.04, and SDXL 0.06 respectively. No source control was
+submitted.
+
+The other missing OpenAI stratum, one face plus multilingual text, was added with a
+second 1536x1024 carrier. The official API found Qwen 0.04 and cleared 0.06, while
+Chroma 0.10 and SDXL 0.04 already cleared. All responses were HTTP 200 with C2PA
+`not_present`, and original-size review found the face identity, Latin, CJK, Cyrillic,
+and date text preserved at every generated rung. This stratum does not raise any
+global OpenAI candidate; the no-face/no-text scene remains the limiting case for
+Chroma and SDXL.
+
+At the original non-Google candidate rungs, Chroma had the best mean quality in all
+three provider cohorts. For Meta, mean LPIPS/SSIM was 0.0320/0.8882 for Chroma 0.10,
+0.0357/0.8595 for Qwen 0.06, and 0.0531/0.8503 for SDXL 0.08. For OpenAI it was
+0.0183/0.8763, 0.0192/0.8595, and 0.0304/0.8459 respectively over the original three
+carriers. Recomputed over all five OpenAI carriers at the freshly verified candidates,
+Qwen 0.06 has the best LPIPS, SSIM, and edge F1 at 0.03073, 0.82461, and 0.89141.
+Chroma 0.12 has the best MAE by a narrow margin at 6.42, but its LPIPS/SSIM is worse
+at 0.05057/0.80940 and Qwen narrowly leads PSNR 27.99 to 27.97 dB; Chroma's
+no-face/no-text scene is the main loss.
+SDXL 0.06 is third on the aggregate perceptual and structural metrics at
+0.03766/0.77202, while keeping the mean Laplacian ratio closest to one. Original-size
+review agrees that there is no single winner on every criterion, but Qwen is the best
+overall OpenAI candidate when perceptual similarity, structure, edges, faces, and text
+are weighted together. Microsoft's
+single flat carrier likewise favored Chroma 0.04 at 0.00265/0.99621 over Qwen
+0.10 at 0.00347/0.99426 and SDXL 0.08 at 0.00324/0.99566; this is a carrier
+comparison, not a multi-source mean. At Google 0.35, SDXL preserved substantially
+more quality than Qwen (mean LPIPS 0.0655 versus 0.1576, SSIM 0.7285 versus
+0.5457), although SDXL needed 0.50 rather than 0.35 on the limiting CJK carrier.
+On that carrier, SDXL 0.50 measured LPIPS/SSIM/PSNR 0.1041/0.7437/23.93 dB,
+substantially better than Chroma 0.50 at 0.2129/0.5853/20.74 dB and Qwen 0.35 at
+0.1834/0.5550/18.93 dB. The newly cleared Chroma 0.22 face and face+text points also lost to
+SDXL at its corresponding tested rungs on every reported metric: LPIPS/SSIM was
+0.0476/0.6657 versus 0.0318/0.7036 for faces, and 0.0506/0.6359 versus
+0.0426/0.7016 for face+text. Original-resolution visual review agreed with that
+direction: Qwen
+0.35 changed the last glyph of the Cyrillic `УЛЫБКОЙ` into a Latin-looking `N` and
+altered substantially more wood grain and background structure; Chroma 0.40 and
+SDXL 0.35 retained the word, with SDXL visually closest to the source. Chroma 0.22
+preserved foreground face identity and text legibility but visibly changed
+background people, room structure, lighting, and confetti. The
+official-oracle access and rolling-quota caveats are recorded in
+[`provider-oracles.md`](provider-oracles.md).
+
+The original Google carriers omitted the explicit no-face/no-text stratum. A
+2026-09-14 extension added two real Gemini-generated 2752x1536 carriers: a
+photorealistic alpine lake and a low-detail geometric desert. At the current
+candidate rungs, the flat carrier remained close under all three profiles;
+LPIPS/SSIM was 0.0237/0.9654 for Qwen 0.35, 0.0120/0.9706 for Chroma 0.40,
+and 0.0134/0.9655 for SDXL 0.35. On the photographic carrier, every profile
+visibly regenerated scene detail. SDXL 0.35 was least destructive at
+0.1174/0.4933, ahead of Qwen 0.35 at 0.2070/0.4120 and Chroma 0.40 at
+0.2216/0.4229. Original-resolution review found major mountain, shoreline,
+vegetation, rock, and reflection changes in Qwen and Chroma; SDXL retained the
+main composition and geometry but still changed fine detail. Full four-rung
+ladders produced 24 variants across the two carriers and three profiles. After the
+independent session allowances recovered on 2026-09-15, the official verifier cleared
+both Qwen carriers at the first 0.15 rung. Chroma's flat carrier cleared at 0.12,
+while its photographic carrier closed at `0.20 detected -> 0.30 clean`. SDXL's
+photographic carrier cleared at 0.15 and its quality-qualified flat 0.35 carrier
+cleared directly. These scene cases therefore do not raise the global Google
+candidate above the text-bound values in the table.
+The SDXL flat ladder was quality-non-monotonic: 0.15 introduced severe texture
+and scored LPIPS 0.1283, while 0.35 looked cleaner and scored 0.0134. Repeating
+0.15 and 0.22 with adaptive polish disabled changed the polished outputs by only
+0.51 and 0.57 mean byte levels per channel and left LPIPS effectively unchanged.
+The artifact therefore comes from the low-step SDXL reconstruction, not polish.
+The 0.15 flat variant is rejected before oracle use; 0.35 is the
+quality-qualified SynthID candidate for that one path.
+
+A Chroma extension was run on an isolated CUDA research worker from the same
+`c4edc282` checkout. Strength 0.50 retained readable
+CJK and Cyrillic but was already borderline: LPIPS/SSIM/PSNR was
+0.2129/0.5853/20.74 dB and 0.2268/0.5490/20.83 dB respectively. At 0.60 both
+scripts were visibly destroyed and LPIPS exceeded 0.42. The official verifier
+subsequently detected CJK 0.40 and cleared 0.50, making the borderline 0.50 rung the
+fresh global Chroma candidate. Strength 0.60 remains rejected on fidelity.
+
+The corresponding SDXL CJK extension used the same checkout and an isolated CUDA
+research worker. The official verifier detected 0.40 and 0.45 and cleared 0.50.
+At 0.50, LPIPS/SSIM/PSNR was 0.1041/0.7437/23.93 dB; original-resolution review
+found the CJK text fully legible and the scene recognizably preserved. SDXL is the
+best-quality Google candidate on the limiting carrier.
+
+#### Google boundary replication, 2026-09-15
+
+Three new Gemini-generated controls replicated the hard boundary on independent
+content: a busy night market with dense CJK and many faces, a flat CJK poster without
+faces, and a portrait reading a dense CJK newspaper. An isolated CUDA run generated
+both seed 0 and seed 1 at the candidate and neighboring lower rungs, 36 variants total. Production
+uses the fixed seed 0, and only processed seed-0 variants were sent to the official
+verifier; source controls were not uploaded.
+
+At the candidate rungs, the official verifier returned `not_detected` for all nine
+profile-by-carrier cells: Qwen 0.35, Chroma 0.50, and SDXL 0.50. A separate lower-rung
+night-market check also cleared Chroma 0.40 and SDXL 0.45, but those two results do
+not lower the policy because the original fresh CJK carrier remained detected there.
+Three quota failures and one duplicate post-success tool-call failure were recorded
+as `unreachable` in separate immutable batches and excluded from the watermark
+count. Every settled batch passed source, upload, manifest, and result hash
+verification.
+
+Quality over all three new carriers and both seeds selected SDXL for Google auto
+routing. Mean LPIPS/SSIM/PSNR was 0.0609/0.8178/25.15 dB for SDXL 0.50,
+0.0980/0.7055/21.85 dB for Qwen 0.35, and 0.1269/0.6909/22.53 dB for Chroma 0.50.
+Original-resolution review agreed: SDXL best preserved the night-market headline,
+newspaper layout, faces, and the flat poster. Therefore the production Google floors
+are Qwen 0.35, Chroma 0.50, and SDXL 0.50, and `auto` routes Google to SDXL.
+
+A localized follow-up checked that aggregate image metrics were not hiding face or
+text failures. InsightFace `buffalo_l` matched three faces in the newspaper scene and
+15 in the night market one-to-one. Across the four scene-seed pairs, SDXL beat Qwen
+on ArcFace cosine in three and lost one, and beat Chroma in all four. That identity
+result is directional but small: the two-sided sign-test p-values are 0.625 and
+0.125, respectively. Face-crop LPIPS favored SDXL in all four pairs against both
+other profiles, also p=0.125 with only four non-tied pairs. This supports, but does
+not by itself prove, an identity advantage over Qwen.
+
+Text was scored separately in seven manually verified fixed regions whose originals
+all produced an exact OCR line: the newspaper masthead, headline, two halves of its
+subhead, the night-market headline, and two poster lines. The metric was the closest
+OCR-line normalized edit distance to that fixed target, across both seeds. SDXL's
+mean was 0.0119 with 13/14 exact region-seed results, versus 0.3770 and 7/14 for Qwen
+and 0.5374 and 4/14 for Chroma. In paired sign tests SDXL was better than Qwen in
+seven non-tied cells and worse in none (two-sided p=0.015625), and better than Chroma
+in ten and worse in none (p=0.001953125). These results cover the selected prominent
+lines, not arbitrary text preservation: fine newspaper body copy was regenerated as
+pseudotext by every profile. The safe claim is therefore that SDXL was the relative
+quality winner on these replicated Google carriers, not that it preserves faces or
+text losslessly.
+
+Two current-floor extensions closed the remaining content quadrants. On the
+face-only carrier, rerun at Qwen 0.35, Chroma 0.50, and SDXL 0.50 for seeds 0 and
+1, InsightFace matched all 18 faces. SDXL had the highest mean ArcFace cosine in
+both seeds, 0.828 and 0.842, versus 0.780/0.794 for Chroma and 0.744/0.773 for
+Qwen. Chroma narrowly won face-crop LPIPS at 0.059/0.058, versus 0.060/0.063 for
+SDXL, while SDXL was much closer over the whole frame. Its face Laplacian ratios
+of 1.152/1.176 also show slight texture amplification; Qwen and Chroma instead
+smoothed face detail to roughly half the source level. Original-resolution review
+therefore favors SDXL for overall composition and identity, but not every local
+face metric.
+
+The no-face/no-text photographic and flat-graphic carriers were also rerun at the
+same current floors and two seeds. On the photographic scene, SDXL had the best
+LPIPS/SSIM in both seeds: 0.345/0.457 and 0.339/0.461, ahead of Qwen at
+0.413/0.412 and 0.404/0.414 and Chroma at 0.568/0.395 and 0.579/0.401.
+Original-resolution review likewise found SDXL closest, although every profile
+regenerated major landscape detail. The flat graphic reversed the LPIPS result:
+Qwen scored 0.045/0.042, Chroma 0.068/0.065, and SDXL 0.099/0.088; all SSIM values
+were 0.962-0.965. Visual review found model-specific gradient, object, or sun-halo
+artifacts in every output. One carrier and two seeds do not justify a new
+content-adaptive route. Together with the text-only and face-plus-text replication,
+these extensions cover all four primary face/text quadrants at the shipped Google
+floors, while also showing why `auto` is a relative default rather than a universal
+per-image optimum.
+
+`requested_steps` is shared by SDXL and Chroma in `two_stage_pipeline.py`,
+which also owns `_target_size` with each profile's grid passed explicitly.
+The step helper exists because the two runtimes truncate differently. DiffSynth sets
+`sigma_start = denoising_strength` and runs every requested step across the shortened
+sigma range; Diffusers img2img truncates the step *count*
+(`init_timestep = int(steps * strength)`), so asking it for four steps at 0.15 executes
+**zero** and returns a bare VAE round-trip.
+
+**The face stage keeps its own dtype, and 0.23.0 shipped without that.** The remover
+gives this profile `torch.float16`, because SDXL ships fp16 weights and an fp16-safe
+VAE. That dtype reached the inherited `_load_zimage`, while `_zimage_vram_config()`
+hardcodes bfloat16 for its offload, onload and computation dtypes -- so the Z-Image
+modules were built bf16 and handed fp16 latents, and every image containing a face
+died in the VAE with `Input type (c10::Half) and bias type (c10::BFloat16) should be
+the same`. Every face-stage loader now reads `_face_stage_dtype()`, which returns the
+computation dtype of the VRAM config it is paired with, so the two cannot drift again.
+
+Two things hid this. Zero-face inputs never enter `_run_faces`, so the profile looked
+healthy on exactly the images used to time it; and the profile's tests deliberately
+avoid model downloads, so nothing exercised the loader. The lesson is narrower than
+"add a GPU test": inheriting a stage means inheriting its *invariants*, and this one
+was a dtype the subclass silently changed out from under it.
+
+Note what the seam is, because it decides where the fix belongs.
+`SdxlZImagePipeline._load_global` hardcodes fp16 for its own ControlNet, VAE and
+pipeline, so `self.torch_dtype` was never actually the global stage's dtype on this
+profile -- its only remaining readers were face-stage code. SAM was the second one:
+it never crashed, because it casts its own inputs and leaves through `.float()`, but it
+was reading the same wrong field and would have re-landed the bug for the next profile
+with a different global dtype. It is routed through the same accessor, which for
+`qwen-zimage` is the bfloat16 it already used.
+
+The guard is `test_face_stage_loads_in_its_own_dtype_when_the_global_stage_differs`.
+It asserts the dtype the Z-Image and SAM loaders actually receive, not the accessor
+against the config it is derived from -- that comparison would restate the
+implementation and pass for any consistently wrong value. Both assertions were
+mutation-tested against the pre-fix line. For `qwen-zimage` the whole change is a
+strict no-op: the remover already handed it bfloat16, the same value
+`_face_stage_dtype()` returns.
+
+This profile is not deployed. Before it could be, it needs the other three Gemini
+originals, OpenAI re-verified at 0.15, a flat-graphic content class, and a low
+resolution case -- every verdict so far comes from one fixture and one seed.
+
+### Measured provider boundaries for qwen-zimage
+
+Both ends of the shipped curve now have oracle verdicts, and the shipped curve clears
+everything it has been tested at:
+
+A source-fresh GPT Image 2.5 check on 2026-09-15 exercised the complete shipped
+profile rather than only a strength sweep. One 1024 x 1024 API generation from
+Flare and one from Sunburst both validated as current OpenAI C2PA, routed to the
+flat OpenAI strength, and remained OpenAI SynthID-positive after pixel-identical
+metadata removal. The complete `qwen-zimage` profile at the then-current
+0.07675, seed 0, cleared
+both in the official OpenAI Content Provenance API. The Flare output measured
+37.48 dB PSNR / 0.9329 SSIM and the Sunburst output 37.01 dB / 0.9179 against
+their sources. Those fidelity numbers describe two neutral studio-photo
+carriers, not a content-wide quality estimate, and the source-positive/output-negative
+oracle pairs do not replace the wider OpenAI calibration that set the floor.
+
+A preregistered source-fresh replication on 2026-10-18 narrowed that result to
+an explicit neutral-studio content class and expanded it to six independent
+sources. Two fixed prompts - one matte sphere and one frosted bottle on smooth
+cyclorama backgrounds - were generated once across `gpt-image-2`,
+`gpt-image-2.5-flare`, and `gpt-image-2.5-sunburst`. All six pixel-identical
+metadata-stripped controls returned official OpenAI SynthID `detected`. The
+same frozen complete `qwen-zimage` profile at 0.09375, seed 0, with no source
+pixel restoration returned `not_detected` on all six; C2PA was absent for every
+oracle check. Against their own sources, the outputs measured 38.34-41.50 dB
+grayscale PSNR, 0.9787-0.9874 grayscale SSIM, and 0.7645-0.9915 tolerant edge
+F1, and all six passed native 1024 x 1024 visual review. The immutable final
+report is `.local-eval/openai-causal-watermark-benchmark-v1/attempt-12-final-report.json`
+(SHA-256 `ea21748e85c3236e14333758797f3286ae455c5f9c325d91c49b260be1906fd1`).
+This is a positive operating point for simple, smooth neutral studio carriers;
+it does not qualify 0.09375 for faces, text, detailed photographs, or the flat
+OpenAI production route, and therefore does not lower the 0.15625 provider
+floor.
+
+A second preregistered source-fresh qualification on the same date extended the
+positive result to product materials with fine detail. Four new fixed prompts -
+an angular painted-wood prism, speckled ceramic mug, stitched leather notebook,
+and brushed-steel coffee pot - were generated once across the same three dated
+OpenAI models. The frozen method first ran the complete `qwen-zimage` profile at
+0.09375 and seed 0, then kept the candidate's low and medium frequencies while
+restoring source frequencies above 1/8 cycle per pixel in YCrCb with a 20%
+cosine transition. The preceding 12-source development matrix showed why both
+stages matter: the base profile removed the signal on 12/12 but cleared the
+fixed fidelity gates on only 6/12, while the compositor cleared them on 12/12
+and retained `not_detected` on all six textured development cases. All 12 fresh
+metadata-stripped controls returned official OpenAI SynthID
+`detected`, and all 12 final candidates returned `not_detected`; C2PA was absent
+for every check. Each prompt stratum qualified 3/3. Against their own sources,
+the final candidates had minima of 36.13 dB grayscale PSNR, 0.9712 grayscale
+SSIM, and 0.8368 tolerant edge F1, and all 12 passed native 1024 x 1024 visual
+review. The immutable final report is
+`.local-eval/openai-causal-watermark-benchmark-v1/attempt-15-final-report.json`
+(SHA-256 `6508df525ea7dfd22e8b405e2d4b10d3e4795c5b5aa3c74a2325e0f73cd35d70`).
+This qualifies a narrow detail-preserving route for these simple product-photo
+strata. It does not cover people, text, natural scenes, arbitrary resolutions,
+or other seeds, and it does not lower the flat OpenAI production floor.
+[`scripts/restore_source_detail.py`](../scripts/restore_source_detail.py) is the
+tracked offline implementation of the qualified compositor. It has no tunable
+cutoff: it reproduces the frozen 1/8 cycle-per-pixel YCrCb split and 20% cosine
+transition, refuses shape or sample-type drift, writes a new metadata-free PNG,
+and records the three input/output hashes. It is intentionally outside the
+installed removal path until a wider content qualification supports such a
+public promise.
+
+```bash
+uv run --script scripts/restore_source_detail.py SOURCE.png QWEN_CANDIDATE.png OUTPUT.png
+```
+
+The next preregistered expansion measured that missing coverage instead of
+generalizing from the product-photo result. Attempt 16 generated 16 fresh
+complex scenes across architecture, botany, food, and landscape, with four
+sources per stratum and two current dated OpenAI models. All 16 metadata-free
+source controls returned official OpenAI SynthID `detected`. Applying the
+attempt-15 1/8 cycle-per-pixel split cleared the fixed fidelity gates on 0/16;
+its minima were 21.91 dB grayscale PSNR, 0.8131 grayscale SSIM, and 0.8844
+tolerant edge F1. Restoring source frequencies above 1/32 cycle per pixel
+cleared the fidelity gates on 13/16, but every one of the 16 candidates returned
+official `detected`. A fixed 12-cell intermediate-band matrix returned nine
+`detected` and three `not_detected`, while its best local band cleared the
+fidelity gates on 10/16 and none of the tested bands covered botany. Lowering
+Qwen strength to 0.0625, 0.07675, or 0.08125 before the 1/8 split cleared the
+fidelity gates on at most 1/16. The result is a measured content boundary: the
+tracked compositor reproduces the qualified product-photo method, but it is not
+a general natural-scene restoration stage. The bound local records are
+`candidates-attempt-16-final/detail-restoration-manifest.json` (SHA-256
+`b614538cb259b201aec96fd77b9005f3ac66a1f339f7067bbcf8a48e8a7c2212`),
+`candidates-attempt-16-period32/period32-manifest.json` (SHA-256
+`9d6fa883acbb95076107bb4682ebd42f28786f5353f215194409b275ee2ebb1c`),
+and `candidates-attempt-16-band-matrix/band-matrix-manifest.json` (SHA-256
+`c5346419e70b139c262f72d64600aeebe1628ae878cb8e8dce0c4011fe1148f3`).
+
+The source-fresh 2026-09-21 expansion supplied that wider calibration. Six
+independent `gpt-image-2` API generations - three YuNet-positive and three
+YuNet-zero-face - each retained SynthID after metadata stripping with decoded RGB
+unchanged. Per-file Qwen ladders, seed 0, were bracketed to 0.00625 against the
+official API:
+
+| content | detected through | first clean |
+|---|---:|---:|
+| 1 face, studio portrait | 0.0375 | 0.04375 |
+| 7 faces, group portrait | 0.0875 | 0.09375 |
+| 3 faces plus text | 0.05625 | 0.0625 |
+| zero-face architecture | 0.0375 | 0.04375 |
+| zero-face typography | 0.025 | 0.03125 |
+| zero-face watercolor | 0.075 | 0.08125 |
+
+Together with the earlier first-cleans at 0.06225 and 0.0695, the cohort is n=8.
+The observed extrema are 0.03125 and 0.09375, so the established rule gives
+`0.09375 + (0.09375 - 0.03125) = 0.15625`. Both face strata span 0.05 internally,
+while their worst boundaries differ by 0.0125; face presence therefore does not
+support separate floors.
+
+| oracle | fixture size | detected at | clean from |
+|---|---|---|---|
+| openai.com/verify | 1.57 MP | 0.06 | 0.08 |
+| Gemini app | 4.33 MP | 0.08 | 0.10 |
+| Gemini app | 0.57 MP | -- | 0.0896 (the curve's own value) |
+| Gemini app | 1.40 MP | -- | 0.1066 (the curve's own value) |
+
+Read the last two rows before concluding the curve's low end is under-driven. Against
+the 4.33 MP Gemini boundary the sub-1 MP rungs of 0.084-0.098 look short, but at those
+sizes the curve's own values verify clean, which is what a resolution-scaled
+requirement would predict. There is no measured size at which the shipped curve fails,
+so it is left alone.
+
+### Meta Content Seal boundaries for qwen-zimage
+
+Measured 2026-08-26 against the anonymous oracle `meta.ai/identification`
+(verdicts read from the settled page text; corpus and full row-level provenance in
+`data/contentseal/manifest.csv`). The original measurement used the
+default resolution-adaptive curve. The retained standalone AI IPTC tag is a
+shared standard and no longer infers Meta. Files need explicit `--vendor meta`
+to select the measured Meta floor from independently known provenance.
+
+| source (2.56 MP generation) | detected at | clean from |
+|---|---|---|
+| gen_lighthouse_watercolor | 0.0525 | 0.06 |
+| gen_fox_forest | 0.03 | 0.0375 |
+| gen_night_city | 0.03 | 0.0375 |
+| gen_studio_mug | -- | 0.03 |
+| gen_text_poster | -- | 0.015 |
+
+Full spread: worst first-clean boundary (0.0525, 0.06] on lighthouse, easiest
+source already clean at 0.015. Following the same derivation as the OpenAI and
+Microsoft floors (worst clean boundary plus one full observed cross-source
+spread): 0.06 + (0.0525 - 0.015) = 0.0975, rounded up to **0.1**. Shipped as
+`QWEN_ZIMAGE_META_STRENGTH`; `--vendor meta` / `InvisibleOptions.vendor` names
+the cohort explicitly, implying the scrub runs (naming the cohort asserts the
+watermark is present). sdxl-zimage has no measured Meta rung and an
+explicit meta vendor there falls to the conservative unknown 0.50. The default
+resolution-adaptive curve (~0.1305 at 2.56 MP) also clears every measured
+source, so default behavior needed no change. Oracle verdicts carry a
+generation ID and creation timestamp embedded in the watermark payload; both
+survived the 512 px resize and JPEG q85 rows, so payload recovery outlives the
+detection threshold. Oracle session limits are per-IP, server-side, and
+sliding-window: clearing cookies and storage does not reset them, and a burst
+exhausts the window minutes after it reopens.
+
+### Static prompt embeddings
+
+Both stages prompt with module constants, and at CFG 1.0 DiffSynth's
+`PipelineUnitRunner` reuses the positive embedding for the negative side instead of
+encoding it. So exactly one embedding per stage is ever computed, from text that
+cannot vary at runtime, which makes it cacheable across containers rather than only
+within one pipeline.
+
+`_cache_static_prompt_embeddings` therefore persists what the text encoder produced
+under `_model_cache_dir()/prompt-embeddings`, keyed by cache version, model id,
+pipeline output params, and the exact prompt string. Once that file exists,
+`_load_global` and `_load_zimage` drop the text-encoder `ModelConfig` from the model
+stack entirely and serve the stored tensors instead. Measured on an H100 volume in
+August 2026, that removes **15.45 GiB** (Qwen2.5-VL) and **7.49 GiB** (Z-Image) of a
+**87.6 GiB** per-request read, worth a median **11.76 s** and **4.10 s** of load time
+(paired within five containers). The output is **byte-identical** -- the stored
+tensors are the encoder's own -- so this needs no provider-oracle re-verification.
+
+Three properties are load-bearing:
+
+- **The key self-heals.** A model bump or a prompt edit changes the key, so the next
+  container recomputes rather than reading a stale embedding. `_PROMPT_CACHE_VERSION`
+  covers a change to the stored shape itself.
+- **The write is atomic.** A torn write must never be readable as a cache hit, so the
+  payload lands in a temp file and is renamed into place.
+- **A miss after the encoder was dropped raises.** `require_cache` records that the
+  stack was built without a text encoder on the strength of the file; falling back
+  would call a model that is not loaded, which surfaces as an opaque crash.
+
+`_model_cache_dir()` prefers `HF_HOME` for the same reason: on a scale-to-zero runner
+that is the only persistently mounted path, and anything below it is re-derived per
+request. The YuNet download follows the same root.
+
+Regression coverage:
+
+- [`test_qwen_zimage_pipeline.py`](../tests/test_qwen_zimage_pipeline.py)
+- [`test_cpu_offload.py`](../tests/test_cpu_offload.py)
+
+### Tiling
+
+[`_internal/tiling.py`](../src/remove_ai_watermarks/_internal/tiling.py) contains pure
+tile planning, feather weights, and tile orchestration.
+
+Tiling engages only when requested and the long side exceeds the tile size.
+It avoids an explicit full-image downscale but does not make diffusion
+pixel-preserving. Each tile is still regenerated.
+
+It also held a `feather_region_composite` for AI-*enhanced* composites, where only
+the edited region should change. Nothing ever reached it: the `erase` command
+inpaints through `region_eraser`, and the remover's `region` argument was only
+reachable from a module-level convenience wrapper with no callers. Both went.
+
+Regression coverage:
+
+- [`test_tiling.py`](../tests/test_tiling.py)
+
+### Postprocessing
+
+[`humanizer.py`](../src/remove_ai_watermarks/humanizer.py) contains explicit
+grain, unsharp masking, and adaptive polish helpers.
+
+Unsharp masking rounds its floating-point output before clipping to uint8.
+Truncation can turn a flat 128-valued image into 127 on OpenCV builds with
+slightly different floating-point kernels. The explicit rounding regression
+also covers fractional values and saturation at both byte limits.
+
+`_apply_postprocessing` in `invisible_engine.py` owns the stage ORDER, and the
+order is a contract: restore the original resolution, unsharp, adaptive polish,
+humanize. Grain runs LAST because `adaptive_polish` measures the image it is given
+against the reference's Laplacian variance, so grain applied first is read as detail
+the image already has. Grain ran first until 0.36.0, and above about `--humanize` 6
+that made the polish a bit-for-bit no-op: measured on a 1092x1440 photo (source
+variance 354.4, blurred stand-in 9.6), `--humanize` 9 and 12 left the polish
+contributing nothing while 0 and 3 let it work. The flag was accepted, the progress
+line still printed, and the run exited 0, so the composition failure was invisible
+from outside. Running the polish first also puts the grain at output resolution
+instead of letting the Lanczos restore smear it.
+
+`adaptive_polish` still self-limits when there is no deficit -- a caller driving the
+helpers directly can reach it, and so can an output already sharper than its source
+-- but it now reports that through its `on_skip` callback instead of returning
+silently.
+
+`upscaler.py` held an optional Real-ESRGAN path, reachable only when enlarging a
+small image to the minimum-resolution floor. That floor existed to lift small
+inputs toward SDXL's ~1024 training size; when the standalone SDXL and ControlNet
+profiles were removed (`sdxl-zimage` is a later, surviving profile) it
+was forced to 0 on every path, so the module, the `--min-resolution` and
+`--upscaler` options and the `esrgan` extra were all unreachable and went with
+it. Only the `max_resolution` cap can move geometry now, and it only scales down.
+Tiled removal bypasses that cap and processes the native image geometry;
+`tile_size` controls the per-tile workload.
+
+Regression coverage:
+
+- [`test_humanizer.py`](../tests/test_humanizer.py)
+
+## Image input and output
+
+[`image_io.py`](../src/remove_ai_watermarks/image_io.py) is the shared image
+codec boundary.
+
+Contracts:
+
+- All package OpenCV file reads and writes use `image_io.imread` and
+  `image_io.imwrite`.
+- `to_bgr` normalizes grayscale and alpha-bearing arrays.
+- `read_bgr_and_alpha` and `write_bgr_with_alpha` preserve the alpha plane.
+- `imwrite` returns a success flag; every caller must check it.
+- HEIC, HEIF, and AVIF pixel reads fall back to Pillow plus `pillow-heif` from
+  the independent `heif` extra. Metadata scanning does not require that plugin.
+- A visible no-op can preserve the original file bytes.
+- `read_bgr_and_alpha` reads with `IMREAD_UNCHANGED`, so a 16-bit source stays
+  16-bit through the pixel path and out through `imwrite`. Anything downstream that
+  needs 8 bits narrows a copy for itself.
+  Lossless-write tests likewise compare explicit unchanged decodes: default
+  color reads may apply EXIF orientation, including for WebP on newer OpenCV builds.
+- `imwrite` accepts `display_tags_from` naming the file whose decode produced the
+  pixels, and carries that file's ICC profile and EXIF orientation into the
+  re-encoded output (issue #98: cv2's encoders write no container metadata, so a
+  Display P3 portrait used to come back desaturated and sideways). PNG and JPEG
+  get the tags spliced into the encoded bytes without a second encode; WebP is
+  re-saved losslessly through Pillow (libwebp hides spliced chunks from readers
+  unless a hand-built VP8X announces them); HEIF writers bake orientation into
+  pixels on save. Callers that know the decode state pass
+  `orientation_applied=False` for raw pixels and `True` for a transposed
+  raster. Dimensions alone cannot distinguish mirrors or 180-degree rotation.
+  TIFF and HEIF are the container exceptions on the explicit claim. Every
+  reader in the stack (cv2's libtiff path under `IMREAD_UNCHANGED` too, and
+  Pillow's TIFF plugin, identically) applies the TIFF orientation tag on
+  decode, so `_read_display_tags` ignores the claim for TIFF and decides on
+  the IFD's stored `ImageWidth`/`ImageLength` against the raster, via
+  `_stored_size` -- `Image.size` already reports the upright geometry there,
+  which is what let a turned raster be tagged into a second rotation
+  (issue #106). HEIF blanks the tag instead: pillow-heif's opener rewrites
+  the EXIF orientation to 1 (the real value waits in
+  `info["original_orientation"]`), and libheif turns the raster exactly
+  when the container declares an effective `irot`/`imir` transform
+  (`isobmff.heif_transform_applied` scans the `meta`/`iprp`/`ipco`
+  property store), so `Image.size` matches the raster in both cases and the
+  shape heuristic has nothing to compare. A camera HEIC (stored raster,
+  EXIF-only rotation, issue #105) re-declares its turn on the output; a
+  re-encoded one whose writer baked `irot` decodes upright and is not
+  tagged again. AVIF keeps the generic path: this plugin build neither
+  blanks its tag nor applies the transform there. The omitted value retains
+  the compatibility shape heuristic. Display tags
+  are captured before encoding, including when source and destination match.
+
+The metadata strip is the other half of that contract: Pillow cannot hold 16-bit
+colour, so `remove_ai_metadata`'s open+save path silently returned a 16-bit PNG at
+8 bits. A PNG whose IHDR declares more than 8 bits now goes through
+`_strip_png_metadata_lossless`, which walks the chunk list, drops the AI-bearing
+text chunks plus `caBX`, re-emits `eXIf` scrubbed of AI tags, and copies IDAT
+verbatim -- the PNG analogue of `_strip_jpeg_metadata_lossless`. A standard
+`iCCP` colour profile survives the default strip and is removed by `--remove-all`;
+the PIL path forwards the profile and the scrubbed EXIF (orientation included) for
+8-bit PNG and WebP outputs too, where they used to be dropped with the rest of
+EXIF. The gate is the depth, not the format: at 8 bits PIL is not lossy, so
+ordinary PNGs keep the shipped path.
+
+Regression coverage:
+
+- [`test_image_io.py`](../tests/test_image_io.py)
+- [`test_cli_robustness.py`](../tests/test_cli_robustness.py)
+
+## Text provenance and token-watermark pipeline (`text.py`)
+
+[`src/remove_ai_watermarks/text.py`](../src/remove_ai_watermarks/text.py) keeps
+deterministic character/container provenance inspection (`identify_text`,
+`remove_text_metadata`) free of ML and pixel dependencies so it runs in the
+default package, Homebrew installs, and `remove-ai-watermarks mcp`:
+
+- **Shared Variation Selector bijection**: bytes `0..15` map to
+  `U+FE00..U+FE0F` and `16..255` map to `U+E0100..U+E01EF`.
+- **C2PA 2.3/2.4 Appendix A.8 (`C2PATXT\0`)**: trailing `U+FEFF` + Variation
+  Selectors unpacking `!8sBI` (`b"C2PATXT\x00"`, `version=1`, `manifestLength`),
+  inspected through `parse_c2pa_chunk` in [`_internal/c2pa.py`](../src/remove_ai_watermarks/_internal/c2pa.py).
+- **C2PA 2.3/2.4 Appendix A.9 (`-----BEGIN C2PA MANIFEST-----`)** and **Appendix
+  A.7 (`text/html` `<head>`)**: inline `data:application/c2pa;base64,...` JUMBF
+  manifests are decoded and inspected; multiple C2PA elements in HTML `<head>`
+  surface the Appendix A.7 validation caveat.
+- **`VSRMark` (`com.cognitive-proof.vsrmark.1`)**: interleaved Variation
+  Selectors unpacking `>4sBH` (`b"VSR1"`, `version=1`, `uint16` length) +
+  UTF-8 payload + `>I` `zlib.crc32` verification. If the raw stream has no
+  valid frame, detection can exclude a registered glyph selector at the end of
+  a two-selector run and verify the resulting stream before removing anything.
+- **Covert steganography forensics (`decode_stego_payloads`, `encode_innamark`)**:
+  decodes `FraunhoferISST/Innamark` (`arXiv:2502.12710`) LSB-first base-4
+  whitespace transcoding (`U+2008`, `U+2009`, `U+202F`, `U+205F` separated by
+  `U+2004` with `InnamarkTag` raw/Deflate/Sized/CRC32/SHA3-256 headers),
+  `KuroLabs/stegcloak` 6-character pair-compressed zero-width streams,
+  `prospectorlabs/subtext-spec` (`0xAB 0xCD` framed VS streams with `U+200A`
+  chunk splitters), `chinmay29hub/stegmoji` (`VS15`/`VS16` binary channel),
+  `paulgb/emoji-encoder` UTF-8 VS payloads, `rm-rf-prod/GroundTruth-MCP`
+  64-bit `U+2061`/`U+2062` watermarks, and 2-symbol / base-4 zero-width binary
+  runs, while decoding invisible HTML entities, scrubbing ChatGPT/Gemini/Grok
+  citation copy artifacts, and normalizing mixed-script confusable homoglyphs.
+- **Emoji, CJK IVS, subdivision flag, Bidi, and joining-script preservation**:
+  single selectors in registered emoji presentation, standardized VS1 through VS16
+  and ideographic variation pairs, Mongolian/Khmer/Hangul script
+  formatters, balanced RTL Bidi controls (always stripping `U+202D`/`U+202E`
+  overrides), `U+1F3F4..U+E007F` flag tag sequences for valid CLDR subdivision
+  and numeric region codes, and `U+200C`/`U+200D` joiners inside emoji or
+  joining scripts (excluding `U+200C` after right-non-joining Arabic letters)
+  are preserved during zero-width/VS/PUA stripping.
+  `_is_explicit_virama_join` also recognizes standalone Devanagari half forms
+  and five legacy Malayalam chillus at end of input or before whitespace or
+  punctuation, and Saurashtra consonant–virama–ZWJ–consonant sequences.
+  [Unicode 17, Chapter 12](https://www.unicode.org/versions/Unicode17.0.0/core-spec/chapter-12/)
+  [Unicode 17, Chapter 13](https://www.unicode.org/versions/Unicode17.0.0/core-spec/chapter-13/)
+  Non-flag Unicode Tags are extracted before this contextual classification.
+  CRC-validated VSRMark bytes are removed before contextual selector classification.
+  The flag lookup is generated by `scripts/generate_text_emoji_flag_codes.py`
+  from the pinned CLDR 48.2 validity files under Unicode License V3.
+  The variation lookup matches exact base/selector pairs. It is generated by
+  `scripts/generate_text_unicode_variants.py` from the pinned Unicode 17.0
+  [standardized variants](https://www.unicode.org/Public/17.0.0/ucd/StandardizedVariants.txt),
+  [emoji variation sequences](https://www.unicode.org/Public/17.0.0/ucd/emoji/emoji-variation-sequences.txt)
+  and the [2026-08-03 Ideographic Variation Database](https://www.unicode.org/ivd/data/2026-08-03/IVD_Sequences.txt).
+  Consecutive selectors are still subject to payload cleanup.
+- **Contextual zero-width control preservation**: retain isolated `U+200B`
+  between Thai word characters or inside recognized inline and fenced code,
+  contextual `U+00AD` soft hyphens between letter clusters (including the
+  `U+00AD U+2011` pairing from [UAX #14](https://www.unicode.org/reports/tr14/#SoftHyphen)),
+  and paired `U+2060` around `U+00D7` or `U+00F7` between decimal digits.
+  These exceptions do not extend to neighboring zero-width controls. A
+  recognized StegCloak or binary payload takes precedence across the input.
+  The known Windows AI sequence is removed in an earlier pass.
+  `_blocks_canonical_mark_reordering` retains `U+034F` if a combining class
+  in the adjacent left run is greater than one in the adjacent right run.
+  The check uses the text after extracting payloads that can split the
+  combining context. The recognized StegCloak and binary alphabets do not
+  contain CGJ, so their presence elsewhere does not disable this check.
+- **UTF-8 text I/O and line endings**: read/decode and encode/write bytes without
+  universal-newline conversion. For CRLF/CR segmentation, match an LF view and map
+  every resulting span back to its original string offsets, preserving locked code.
+- **Span-protected prose regeneration (`remove_text_invisible`)**:
+  `split_protected_text_spans` locks fenced code blocks, inline code, display and
+  inline LaTeX math, URLs, file paths, HTML blocks/tags, and Markdown structure,
+  substituting `[[RAIW_SPAN_k]]` placeholders during paragraph rewriting.
+  Single-dollar math requires non-whitespace at both inner edges and a closing
+  dollar not followed by a digit, so separate currency amounts do not lock the
+  intervening prose. The pipeline continues by
+  checking numerals, selected seasons, explicit English frequencies and NegEx polarity preservation via
+  `verify_text_rewrite_facts`, and verifying byte-identical survival of every
+  locked span afterwards. Transformers model loading switches the causal LM to inference
+  via `model.train(False)` (never `.eval()`, which triggers the Codex plugin
+  catalog scanner rule).
+  A configured tokenizer chat template is rendered once and encoded with
+  `add_special_tokens=False`, because the rendered text already carries native
+  control tokens. Tokenizers without a configured template use the plain passage
+  prompt with automatic special tokens enabled. Method presence alone does not
+  establish that a tokenizer has a usable chat template.
+  The fact guard also compares select English sentences with an explicit
+  `in` condition, singular subject, two coordinated predicates and the same
+  literal outcome. `may`, `might`, and `could` conflict with an unqualified
+  matching assertion. Matching recognizes regular singular present forms,
+  bounded condition examples, and a definite noun with a single matching
+  antecedent in the preceding sentence. Ambiguous matches are left unresolved.
+
+  The optional `rewriter_backend="mlx"` uses cached local MLX loading on Apple
+  silicon without requiring Torch for generation. Availability checks the concrete
+  `mlx.core`, since the parent `mlx` is a legitimate namespace package and may
+  have no loader before its first import. Missing cores still return unavailable.
+  It disables thinking in the
+  chat template, collects streaming text and accepts only an explicit `stop`.
+  Length/unknown stops retry, and `_guard_local_rewrite_candidate` supplies the
+  same placeholder, numeral/bound, frequency, season, name, script, extent and validator checks as
+  Transformers. The loader disallows remote model/tokenizer code. Backend choice
+  does not supply a semantic-equivalence judge. Selected English necessity forms
+  (`need`, `needs`, `needed`, `needing`, `require`, `requires`, `required`,
+  `necessary`, `necessity for`) share the requirement category; material needs are not discarded
+  merely because they lack an infinitive. Scope and actor binding remain heuristic.
+  Selected explicit seasons also survive the shared fact check. Bare `spring`
+  and `fall` are ambiguous and serve only as aliases for explicit counterparts;
+  they do not independently assert seasonal timing. A spring-to-autumn range
+  contributes both seasons. This catches observed season loss/range expansion
+  without treating a fall-related injury or a natural spring as a calendar fact.
+  It does not bind a season to an actor/event or establish temporal equivalence.
+
+  `_extract_normalized_numerals` preserves its legacy set default and exposes a
+  typed occurrence mode. `_extract_numeral_occurrences` requests the sorted
+  occurrence view for `verify_text_rewrite_facts`, so an extra repeated amount
+  cannot hide in a unique-value set. Whole English/Russian cardinals and each
+  recognized measurement or duration are counted once; frequency phrases and
+  marker indices are excluded. This detects some quantity-binding changes but
+  does not bind equal-count values to specific entities and can conservatively
+  reject valid mention compression. The same local guard rejects and retries
+  a candidate whose numerical values survive but whose occurrence counts change.
+
+  `_INDEFINITE_DURATION_RE` recognizes selected long-form English article-plus-unit
+  durations (hour/day/week/month/year). `_indefinite_duration_signature` binds one
+  to the unit in measurement, numeral and numeric-bound checks. Local masking
+  protects the complete phrase. Frequency extraction runs first to avoid counting
+  `once a day` as an independent one-day duration. Ambiguous second/minute senses,
+  compounds and unit ratios are excluded; actor/event and conditional binding
+  remain unverified.
+
+  `_extract_frequencies` retains a sorted multiset of selected English recurrence
+  signatures `(repeat_count, period, unit)`. It normalizes selected adverbs,
+  every/each intervals, alternate-day-style phrases and repeat-count aliases.
+  `annual` shares the year signature with yearly/annually. Bare per-unit periods
+  (including selected monetary-rate wording) share the corresponding period
+  signature. A word/hyphen boundary prevents matching annual inside semi-annual
+  or non-annual; unsupported compound schedules remain uninterpreted.
+  Recognized frequency phrases are excluded from standalone numeral/measurement
+  extraction and masked as complete spans in both local backends. This prevents
+  a two-day interval becoming a separate quantity or losing its recurrence.
+  It does not convert calendar units, interpret all bounded or vague schedules,
+  or bind frequency mentions to particular actors/events. Mention multiplicity
+  is conservative and can reject valid shared-modifier compression.
+
+  `_TYPE_COVERAGE_PATTERN` recognizes selected explicit English each/every/all
+  type-coverage phrases with limited modifiers and word/hyphen boundaries.
+  `_explicit_type_coverage_count` preserves their mention count, and local masking
+  locks the same complete phrases. This rejects the observed each-type/various-types
+  loss. It does not bind coverage to a particular entity, interpret arbitrary
+  quantifiers or establish semantic equivalence; mention compression can be rejected.
+
+  `_extract_explicit_membership_stances` compares selected determiner-led
+  affirmative English copular membership/criticism frames. Matching literal
+  subject/object descriptions can differ in articles or case/whitespace; a
+  singleton membership claim cannot replace a singleton critical stance, or
+  vice versa. The reader does not require a sentence boundary before the
+  determiner, because observed lexical output joins source line breaks.
+  Different descriptions, modality, negation, unsupported grammar and mixed
+  claims remain unresolved. This is not general relation or entity binding.
+
+  The shared fact guard recognizes matched English subject-filter sentences
+  about users narrowing their searches as a capability. It can equate
+  `allowing` and `enabling` in those matched frames. Unmatched actors, actions,
+  and separate permission clauses still go through the constraint check.
+
+  For bare numeral comparison, the shared fact guard treats the ordered opening
+  pair “In one scenario,” and “In the second scenario,” as equivalent to
+  “In a particular situation,” and “In another scenario,”. It still compares
+  the numerical claims inside the examples and the count in a lone scenario.
+  Local fact masking keeps its original numeral treatment.
+
+  `build_text_api_rewriter` is an explicit Python API opt-in. It owns masking,
+  the unchanged shared `_TEXT_REWRITE_SYSTEM_PROMPT`, restoration and the same
+  `_guard_local_rewrite_candidate` as local generation. `text_api.py` supplies
+  the standard-library Chat Completions transport and reexports the factory.
+  `text-api` installs only the packaged language-checker dependency, without
+  a local generation runtime. Construction has no network effect. One callback
+  invocation makes one POST; an outer explicit validator can invoke it again
+  under its existing retry policy. Endpoints/models/credentials have no
+  defaults and no automatic environment configuration or remote fallback.
+  HTTP status, JSON/message shape, natural stop and shared policy must all
+  succeed. Redirects are refused and configured credentials are redacted from
+  request/response logs and exceptions. Transport tests use a local HTTP
+  server; they do not validate provider model quality or watermark absence.
+
+  List prefixes are locked separately from the prose that follows them, so
+  numbering survives without preserving an entire marked list item. Comparative
+  idioms such as "one of the most" and reciprocal "one another" do not create a factual quantity constraint;
+  actual counts such as "one crate" still do. Selected indefinite-article
+  participle phrases such as "a partly filled one" treat "one" as a noun
+  substitute in both masking and occurrence counting. Compounds such as
+  "one-litre" retain their numeric occurrence. Numeric literals, selected English/Russian
+  cardinals, selected Russian duration adjectives, recognized names and all-caps
+  terms (also at sentence start) are masked before local
+  inference and restored byte-for-byte after
+  placeholder validation.
+  Adjacent recognized name words share one marker and must remain contiguous in
+  the fact checker, with case/whitespace flexibility. This prevents splitting a
+  compound name into separate entities, without supplying general NER or role
+  verification. Quantity checks reject invented as well as missing
+  values; this does not verify which entity a quantity refers to. Exhausted local-model retries raise
+  instead of returning the first invalid
+  candidate. A generation that fills its token budget without ending on a
+  configured EOS token is rejected as potentially truncated. The prompt treats
+  source text as data rather than instructions; a coarse extent check rejects
+  severe collapse/expansion of long prose, without claiming semantic verification. Invented, dropped or duplicated service placeholders also reject a
+  local candidate. Verbatim paragraph echoes are refused before output publication,
+  including for caller-supplied rewriters. `_titled_name_phrases` reads selected
+  `Mr.`, `Mrs.`, `Ms.`, `Dr.` and `Prof.` phrases with capitalized name words and
+  initials before the generic sentence/name heuristic can split at the
+  honorific period. `_appositive_name_phrases` additionally reads selected initial
+  ASCII capitalized name runs before a comma and a/an/the appositive. Common
+  leading function words and numeric words abstain. `_selected_name_phrases`
+  combines both readers for the same full-phrase checks and longest-first local
+  masking. This protects a selected first name as well as the surname; it does
+  not establish general NER, arbitrary initial-name, pronoun or role binding.
+  Masking gives every full phrase occurrence its own marker;
+  the fact checker requires recognized full phrases to survive contiguously,
+  with case/whitespace tolerance, without asserting actor binding or enforcing
+  repeated mentions after a pronoun paraphrase. Separately,
+  `_changes_actor_apposition` checks selected affirmative English clauses
+  beginning with a definite title and an indefinite description with
+  `with`. For supported actions, it detects when the same description becomes
+  a separate subject or a passive participant paired with the original title.
+  It recognizes selected greeting and handover aliases, and either order of
+  two determiner-led description details. `_extract_event_phases` maps
+  selected affirmative English clauses to a plan, attempt or completed action.
+  It compares literal actor/object pairs across selected active and passive
+  forms, plus a shelter/refuge pair with a matching location string. Mixed
+  evidence for the same pair and unmatched clauses abstain.
+  `_changes_influence_qualification` compares selected affirmative English
+  influence clauses. The key binds the factor, first `how` effect and any
+  leading `in` condition. A narrow alias binds `surface absorbency of` to
+  `level of surface absorption in` for the same following object. Ambiguous
+  or unmatched frames abstain, and generic unmodified `can`/indicative pairs
+  remain eligible. Selected explicit
+  approval, permission, responsibility, restriction and requirement families in
+  English and Russian must agree. `_REWRITE_CONSTRAINT_PATTERNS` retains selected
+  literal cue categories: funding availability cannot replace approval, and an
+  activity statement cannot become responsibility or permission without a cue
+  mismatch. `_changes_explicit_expected_action` compares sentence-initial
+  affirmative `expected to` and `required to` constructions for the same
+  definite actor and literal action. It treats `agreed upon` and
+  `agreed-upon` alike in the action and abstains on mixed cues for a matched
+  actor/action pair. A requirement elsewhere in the text cannot mask the
+  matched shift. `_constraint_texts_for_capability_frames` supplies one paired English
+  exception: matching sentence-initial technical subjects, actors, selected
+  functional-action families and bounded objects distinguish `allow`/`enable`
+  capability paraphrases. Selected object aliases are local to that comparison.
+  Only matched singleton cue spans are erased in temporary comparison strings;
+  original text and the remaining factual checks are unchanged. Explicit
+  permission elsewhere, human/policy subjects, access verbs and unmatched or
+  repeated frames retain the ordinary cue checks. This does not generally bind
+  cues to actors/events, establish causality or
+  cover every synonym; conservative refusals remain possible. Additive
+  "not only"/Russian equivalents are excluded. Negation checks normalize curly
+  apostrophes and recognize `mustn't`. Selected inclusive/exclusive numeric bounds and
+  approximations are compared as `(kind, normalized value)` pairs; changing one
+  value's bound cannot be hidden by preserving another value's bound. Numeric
+  `no fewer/more than` phrases are excluded from predicate-negation detection.
+  Selected English change phrases attach `endpoint` or `change` to the
+  normalized percentage value. Explicit conflicts with a single role per value
+  on each side reject the rewrite. Unrecognized and mixed roles abstain.
+  Adjacent English `estimated N`, `estimated at N` and `estimate of N` use a
+  separate `estimate` kind. Supported units remain part of the signature;
+  nonadjacent estimate descriptions and general uncertainty are not parsed.
+  Selected Russian cardinal sequences, supported case forms and descending
+  thousand/million/billion scales now share whole-value normalization for numeral
+  and bound checks. Local masking freezes whole sequences and selected duration
+  adjectives, including `пятилетняя`. Superlative `один` is excluded only outside
+  a larger cardinal; ambiguous `сорока` is left unparsed. Malformed recognized
+  sequences and indefinite bare plural scales retain literal signatures.
+  Selected English integer grammar normalizes compounds, internal `and`, scales
+  and conjunction lists. Malformed recognized runs retain literal signatures.
+  English/Russian explicit plus/minus words bind to whole cardinals. Recognized
+  finite decimal/scientific literals use exact decimal digits and isolated
+  context flags; extreme exponents use compact keys. Ambiguous comma/dotted
+  syntax stays literal. Masking selects the longest phrase at a shared start,
+  preserving full names and whole cardinals when name words recur in a quantity.
+  Cached next matches are rescanned after overlaps, including name suffixes;
+  absent patterns are not repeatedly searched. Superlative-one filtering uses whole-number
+  boundaries rather than removing a component of a compound cardinal.
+  `_MEASUREMENT_GAP` also recognizes a hyphen before selected English duration
+  units (hour/day/week/month/year), so four-week and four weeks share a quantity
+  and unit in masking, occurrence, measurement and numeric-bound checks. Other
+  hyphenated expressions such as 5-m are not claimed as measurements.
+  Selected adjacent measurements are compared as amount/unit multisets and masked
+  whole. Registered symbols are case-sensitive; word aliases share canonical
+  units. Known slash compounds and square-unit forms are explicit; Russian
+  duration adjectives retain their unit as well as their number. Numeric bounds
+  incorporate the recognized unit, preventing swaps between equal values in
+  different units. Measurement powers are excluded from separate numeral
+  extraction. Unit names in ordinary measurements do not become person-name
+  requirements; title-like name runs remain available to longest-match masking.
+  No conversion or dimensional analysis runs. Unknown units, ambiguous words,
+  unregistered powers/products and participant/quantity roles remain gaps.
+  Number-word support remains limited, including fractions and ordinals.
+  The lexical checks do not resolve ambiguous
+  comparisons, participant/qualifier attachment or full factual content.
+  The local prompt requests the original language. A separate packaged
+  `py3langid==0.4.0` classifier checks masked source/candidate prose before fact
+  restoration: remove service markers, normalize the classification samples to
+  NFC and require at least 40 alphabetic characters each. Reject different labels
+  when source confidence is at least 0.95 and candidate confidence at least 0.8.
+  Short/uncertain inputs and unknown source labels abstain. Scores are not
+  calibrated accuracy or semantic proof. Cache only the model, not user text.
+  The `text` and `text-mlx` extras supply the classifier; SynthID reference scoring
+  still requires only Torch/Transformers. A dominant-script check independently
+  rejects obvious translation to another writing script.
+  Predominantly Latin/Cyrillic sources also reject fragments in the other alphabet
+  if it was absent from the original. Existing mixed-script inputs are not covered
+  by that extra check; short passages still use the existing minimum-length policy.
+  Explicit `allow_partial=True` retains clusters whose rewriter raises
+  `RuntimeError`, reports `retained_prose_spans` and `partial_regeneration`, and
+  continues. All-prose refusal still aborts before output publication. Unexpected
+  exceptions propagate. Default processing remains strict.
+  `scripts/benchmark_text_fidelity.py` is a separate local NLI research diagnostic,
+  with explicit token-window failures and per-direction/per-sentence scores. It
+  does not enable a default semantic acceptance policy. Its run contract and
+  examined failure results are in `docs/text-watermark-validation.md`.
+  `scripts/benchmark_text_pairs.py` binds blind human reviews and detector
+  receipts to exact texts and reports paired fidelity and clearance outcomes
+  on qualified marked and clean sources.
+  `_extract_explicit_record_distribution` distinguishes selected explicit English
+  communal/shared record containers from a notebook/ledger/logbook/register/log
+  for each item. `verify_text_rewrite_facts` rejects opposite unambiguous modes in
+  either direction. Notebook entries, ledger pages and register codes are not
+  containers. Unrecognized or mixed modes abstain; this does not establish record
+  ownership, implicit scope or bindings to particular items. The check closes an
+  observed shared-notebook-to-per-tool-notebook acceptance without claiming full
+  semantic equivalence.
+  `_extract_explicit_signal_directions` maps selected English signal nouns and
+  literal group/owner descriptions to explicit `from`/`to` directions, including
+  `nod in return to`. Opposite singleton directions for the same signal and
+  participant are rejected. Missing or differently described participants and
+  mixed directions abstain; compound participant names are not shortened to a
+  recognized prefix. This catches selected source/recipient reversals, not
+  general approval actors or modifier-to-event relationships.
+
+  An optional strict-boolean `rewrite_validator` runs after local candidate guards
+  and can reject candidates within the three-attempt retry loop. Custom rewriters
+  also retry with the callback, skipping empty or unchanged proposals; their
+  factual policy remains caller-owned. Callbacks see restored protected content,
+  not service placeholders. Placeholder IDs avoid literal marker strings in the
+  source without parsing user IDs as integers. Both paragraph rewriting and
+  per-span fallback reject empty prose before publication. This extension point
+  does not enable a default semantic judge or certify an output.
+  `document_rewriter` is an opt-in ordered batch callback over unlocked spans.
+  Ordinals distinguish duplicate text. The assembly reinstates input span
+  whitespace and separately checks the exact sequence of locked spans after
+  resegmentation. Unchanged slots count as retained prose.
+  `document_validator` reviews the original and the complete visible result
+  before writing, and can veto either the normal or document route. With both
+  document callbacks configured, `document_repairer` can offer one correction
+  after a veto. It receives the original and rejected prose slots. The same
+  assembler and document validator check the correction before writing.
+  A `document_refiner` can update an accepted draft before the write, subject
+  to the same structural and document checks. The combined metadata API
+  forwards the document callbacks to regeneration.
+  `build_text_api_document_rewriters` uses the same single-request Chat
+  Completions transport as the passage adapter. It parses ordered JSON strings
+  before protected assembly. The transport receives the original prose slots
+  and, for repair, the rejected slots. The caller supplies the full-document
+  reviewer and its factual and semantic acceptance policy.
+  The optional sentence style flattens prose into aligned sentences for both
+  calls, then rebuilds each original prose slot with its original separators.
+  Fixed-length JSON Schema and reasoning controls are explicit endpoint options.
+  The CLI's Ollama backend selects these settings on a loopback endpoint and
+  applies the shared fact guard to the complete result. With strict CLI
+  settings, a returned unchanged prose slot vetoes publication.
+  The opt-in strict residual API and CLI use the document repair callback to
+  restore locally vetoed sentences and the refinement callback to regenerate
+  verbatim retained sentences in one additional structured request. They refuse
+  remaining verbatim sentence slots and failed sentence or document fact checks.
+  The dependency-light `text_roles.py` module supplies the optional
+  `verify_text_rewrite_loan_roles` callback helper. A caller-owned English parser
+  provides complete, exact-input dependency/POS/lemma annotations. Borrow/lend/loan
+  clauses map to borrower/lender roles, with selected subject-control,
+  coordination, passive/dative and object-attached preposition handling. Exact
+  compound participant lemmas and available item lemmas bind comparisons;
+  unscoped comparisons also catch a participant's disjoint borrower/lender roles
+  when no item is resolved. Incompatible nonempty role sets reject the candidate.
+  Unmatched entities, unresolved pronouns, parser mistakes and other semantic changes are
+  not inferred. The helper loads no model and changes no default policy.
+  `tests/test_text_loan_roles.py` replays frozen synthetic dependency trees and
+  tests malformed parse rejection and import without optional dependencies.
+  `score_synthid_text` delegates hashing,
+  sampling-table construction and repeated-context masking to the optional Hugging
+  Face reference processor. Its cache key includes keys, ngram length, sampling
+  table seed/size, context history size and device; device matters to the table's
+  pseudorandom generator. It returns a mean-g diagnostic score, not the trained
+  Bayesian detector or a provider verdict.
+  `score_synthid_threefry_text` follows the open single-key reference using a
+  standard-library Threefry2x32 port. It excludes positions from EOS onward and
+  maintains the last configured number of context hashes. It counts the
+  retained tournament bits and reports the binomial upper tail.
+
+Regression coverage:
+
+- [`test_text_watermarks.py`](../tests/test_text_watermarks.py)
+- [`test_text_watermark_runtime.py`](../tests/test_text_watermark_runtime.py)
+- [`test_text_synthid_threefry.py`](../tests/test_text_synthid_threefry.py)
+
+## Bounded image audit workers
+
+`scripts/_isolated_image_workers.py` supervises a fresh Python subprocess for
+each image in `visible_positives.py` and `pill_gate_audit.py`. Each child has
+its own timeout and is killed and reaped when that bound expires. A native
+crash, timeout, or malformed worker reply remains an explicit failed row;
+the parent never retries unsafe decoding in its own process. Threads only
+supervise children. Recall sampling deduplicates by source content SHA-256,
+not by equal detector-confidence vectors.
+
+## Adding or changing behavior
+
+For a new visible mark:
+
+1. create a synthetic detection silhouette;
+2. add or extend a vendor engine;
+3. add one registry entry;
+4. test detection, false positives, localization, and actual pixel change;
+5. update [supported signals](supported-signals.md).
+
+For a new metadata signal:
+
+1. add the scanner;
+2. add every supported removal placement;
+3. verify the output through `strip_and_verify`;
+4. add identification and removal tests;
+5. update [supported signals](supported-signals.md) and, when relevant,
+   [the watermarking landscape](watermarking-landscape.md).
+
+For a diffusion change:
+
+1. keep model-free logic in pure helpers where possible;
+2. test option propagation and dispatch without downloading models;
+3. run a real model smoke for the changed model path;
+4. treat provider-verifier results as specific to the exact checked output;
+5. update [known limitations](known-limitations.md).
+
+## Known public video messages
+
+`video_messages.py` exposes explicit VideoSeal, PixelSeal, and ChunkySeal
+correlation and removal APIs (`DEFAULT_VIDEO_MESSAGE_LONG_SIDE = 512`). It
+requires an independent 256-bit (`videoseal`, `pixelseal`) or 1024-bit
+(`chunkyseal`) reference. PyAV decodes every frame in bounded batches,
+applies right-angle display rotation, and verifies complete frame counts against
+`probe_video_timestamps` (`ffprobe` packet timestamps) independently of OpenCV
+container metadata. Inspection binds the input hash before and after decoding.
+Missing optional dependencies remain unverified; model, numerical, and demux
+failures propagate.
+
+`detect_video_watermark_presence` (`video message detect`) is the blind check
+without a reference: it averages the channel-0 presence probability over every
+frame and the sign stability of each message bit, reports `detected` at mean
+probability `>= 0.70` with consistency `>= 0.65` (`>= 0.85` probability alone
+below four frames), and then returns the majority-sign payload as `decoded_hex`.
+It covers only the pinned public models and says nothing about provider keys or
+SynthID (`test_blind_video_watermark_presence_cli_and_api`).
+
+`_internal/video_message_models.py` validates content-addressed assets before
+loading. PixelSeal strictly replaces only detector weights in the verified
+VideoSeal JIT graph, with `weights_only=True`; ChunkySeal verifies the archive
+central directory SHA-256, downloads only the contiguous `3.10 GB` `detector.*`
+ZIP64 slice (`a546154b...`) with per-entry CRC-32 validation and zero pickle
+execution, and instantiates the 1024-bit `ConvNeXtV2` + `PixelDecoder` graph in
+PyTorch; the handle exposes decoding, not the embedding graph. Official-source raw-logit parity is
+retained with the local evaluation. `_internal/video_message_scores.py` streams
+float64 sums for four aggregations, every-frame accuracy, and stride-1 12-frame
+sliding windows including a context-completed tail. Failed updates poison the
+accumulator so a valid prefix cannot become a false whole-file negative.
+
+Removal tries a fixed codec/VAE sequence behind a saved-file verification gate,
+supports opt-in single-encode `temporal_stabilize`, and reports model-free
+`quality_passed` from `_quality_passes`: `codec` needs `source_psnr_db >= 25.0`
+and `source_ssim >= 0.75`, `vae` needs `>= 18.0` and `>= 0.35`, and a lossless
+candidate (infinite PSNR) is judged on SSIM alone. A failing candidate moves to
+the next profile, and only `force` on the last profile keeps it.
+`_internal/video_message_regeneration.py` checks revision-pinned config and
+safetensors hashes, complete state loading, and latent scale before using the
+float32 graph. The legacy SynthID profile is separate. Processing accepts one
+zero-based CFR video stream plus audio, and checks copied packet payloads,
+timing, exact decoded samples, languages, and dispositions. Source and saved
+candidate hashes are checked again before atomic publication. Force never
+converts unverified evidence into verified removal.
+
+`video_quality.py` shares delivered-file measurements with the research CLI and
+`scripts/media_removal_benchmark.py` (Schema v2, including `source_psnr_db`,
+`min_frame_psnr_db`, grayscale `source_ssim`, 3-channel BGR `source_color_ssim`,
+`min_frame_ssim`, 12-frame `worst_window_ssim`, and `temporal_residual_ratio`);
+`_internal/image_quality.py` shares its per-channel SSIM kernel. Measurements include
+resize, frame sampling, codec, and VAE effects. They are not watermark verdicts.
+The [CLI contract](cli.md#public-model-video-messages-experimental) defines the
+public options and output restrictions.
+
+## Integration operation catalog
+
+`integration.operation_catalog()` derives every non-server CLI leaf and its typed
+parameters from Click. `api_draft_text` covers the public API-only OCR proposal
+backend. MCP discovers this catalog in a child process so its transport
+keeps standard-library imports. ComfyUI builds typed nodes and the Space builds
+Gradio controls from the same metadata. `widget_arguments` preserves omitted
+profile defaults; `plan_operation` retains repeatable/negative flags, preserves
+the audio and known-message video output formats and defaults, and refuses
+source/output aliasing. Execution uses a fresh child, sends arguments on stdin,
+and redacts credentials from requests, responses, and MCP diagnostics. The Space
+stages uploads per request; callers cannot select server input or output paths.
+Coverage and source-preservation regressions live in `tests/test_integration.py`.

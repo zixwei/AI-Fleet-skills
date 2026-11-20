@@ -1,0 +1,319 @@
+# Release and distribution
+
+This page describes the release behavior defined in this repository. External
+registry state can change independently, so verify it during a release.
+
+## Published surfaces
+
+A release is complete only after all four published surfaces are verified:
+
+| Surface | Published result | Automation |
+|---|---|---|
+| PyPI | The `remove-ai-watermarks` wheel and source distribution | `publish.yml` |
+| Homebrew | The `remove-ai-watermarks` formula in `wiltodelta/homebrew-tap` | `distribute.yml` |
+| Hugging Face Space | The Space demo deployed on the new release through a requirements-pin bump in `wiltodelta/raiw-hf-space` | `distribute.yml` dispatches `pin-library.yml` in that repo, waits for the Hub `requirements.txt` pin, then factory-rebuilds; `sync-to-hf.yml` mirrors the pin onto the Space |
+| ComfyUI Registry | A compatible release of `wiltodelta/ComfyUI-remove-ai-watermarks` with its own node version | `distribute.yml` and the node repository's workflows |
+
+The GitHub Release is the trigger and release record for this flow. Conda is
+not a supported publishing surface: this repository has no conda recipe or
+conda publication job.
+
+## Release sources of truth
+
+The package version appears in:
+
+- `pyproject.toml`;
+- `src/remove_ai_watermarks/__init__.py`;
+- both `version` fields in `server.json`;
+- the root package entry generated in `uv.lock`.
+
+Update the first three, then refresh the lock file with uv. Do not edit a
+line-number-specific location in `uv.lock`; its package order changes.
+
+Before choosing a version, verify it is absent from git tags, GitHub Releases,
+and PyPI. An unpublished remote tag still reserves that version; never move it,
+publish the next version instead.
+
+## Publish flow
+
+PyPI publishing is triggered by a published GitHub Release, not by a tag push
+alone.
+
+The expected sequence:
+
+1. update the version sources and lock file;
+2. run the complete project gate;
+3. commit and push the release change;
+4. wait for required CI to pass on that exact commit;
+5. create an annotated `vX.Y.Z` tag on the verified commit and push the tag;
+6. publish the GitHub Release.
+
+`.github/workflows/publish.yml` then:
+
+1. checks that the release tag matches `pyproject.toml`;
+2. builds the package with uv;
+3. publishes with `uv publish` through PyPI trusted publishing.
+
+The workflow uses GitHub OIDC through the `pypi` environment. It does not read a
+PyPI API token from the repository.
+
+## Post-release distribution
+
+`.github/workflows/distribute.yml` triggers via `workflow_run` once
+`Publish to PyPI` succeeds, reading the `published-release-*` identity artifact
+uploaded by `publish.yml` (so model-freeze prereleases skip cleanly and runners
+never poll while `publish.yml` is still building). It confirms the matching
+source distribution appears in both PyPI indexes, then:
+
+- synchronizes the Homebrew tap formula URL, SHA-256, and all published extras
+  through the tap's `scripts/sync_remove_ai_watermarks.py`; a new artifact resets
+  the formula revision, while redistributing the same artifact preserves it;
+- bumps the Hugging Face Space pin and factory-rebuilds the demo on that pin;
+- synchronizes, tests, versions, and publishes the ComfyUI nodes.
+
+Upgrading the Hugging Face Space is dispatched from `distribute.yml`: it runs
+`pin-library.yml` in `wiltodelta/raiw-hf-space`, which bumps
+`remove-ai-watermarks[all,text-draft]` in `pyproject.toml`, refreshes `uv.lock`,
+and pushes. That repository's `sync-to-hf.yml` then mirrors the files onto the
+Space. `distribute.yml` waits for the Hub `requirements.txt` pin to match,
+then factory-rebuilds. The `RAIW_HF_SPACE_TOKEN` repository secret is a
+fine-grained token limited to the Space repository, with Contents write and
+Actions write. Without the secret the pin bump is skipped and only the
+factory rebuild runs, which reinstalls whatever version is already pinned.
+The Space repo's callback smoke tests still run on every push; they are the
+scenario check for the demo surface.
+
+The Hugging Face **model** `wiltodelta/raiw-source-classify` and its companion
+20-model open benchmark Space `wiltodelta/ai-image-detector-leaderboard` are not
+part of the package release fan-out. They are published together with
+`.github/workflows/publish-source-classify-hf.yml`. The workflow downloads the
+derivative `multi-provider-source-v8.npz` artifact from the declared GitHub
+model freeze, verifies its SHA-256, uploads that file plus the tracked
+`README.md`, `metrics.json`, `infer.py`, `benchmark.py`, and `demo.ipynb` under
+`docs/source-classify-hf/` and a synthesized `config.json` (while deleting
+retired Hub model repositories), then runs
+`scripts/sync_ai_detector_leaderboard.py` to verify parity against
+`metrics.json` (optionally re-evaluating the 578-image open benchmark on CPU via
+`recompute_leaderboard=true`), synchronize
+`docs/ai-image-detector-leaderboard/` onto the Hugging Face Space
+`wiltodelta/ai-image-detector-leaderboard`, and write an external arena and
+baseline-drift status table (covering the Space, the Hugging Face blog report,
+`aidetectarena.com`, and the pinned Hub baseline revisions) to the workflow
+summary. A library version bump alone
+does not upload new weights - bump `WEIGHTS_REVISION` in
+`src/remove_ai_watermarks/source_classify.py` when a new Hub commit must reach
+installed clients. The private corpus, catalog, paths, hashes, embeddings, and
+feature caches are outside this flow.
+
+The workflow is manual and requires the model-freeze release tag plus an
+explicit `publish` confirmation. Keep model-freeze GitHub releases marked as
+pre-releases so a model artifact cannot replace the latest package release in
+GitHub's release UI. Package publication and distribution jobs run only for
+non-prerelease `v*` tags, so model-only prereleases cannot enter PyPI or the
+package fan-out. A draft release keeps its target commit when published; target
+the commit containing those guards before creating a model-only release, not
+merely the then-current `main` after the draft already exists.
+
+If a distribution job fails because a repository or Hugging Face credential is
+invalid, rotate the corresponding GitHub secret and rerun the failed job. A
+manual Homebrew formula update is the fallback when its automation is blocked.
+
+## Source distribution boundary
+
+The wheel includes the package under `src/`.
+
+The source distribution uses an explicit allowlist for `/src`, `/LICENSE`,
+`/README.md`, and `/pyproject.toml` through
+`[tool.hatch.build.targets.sdist]` in `pyproject.toml`. It also defensively
+excludes `/data`, `/tmp`, and `/.sc`. Keep both controls: calibration captures,
+test corpora, generated research outputs, and local session state do not belong
+in the published package archive. Hatchling always adds the root `.gitignore` to
+the sdist, so keep its comments generic and free of local operational context.
+Ignore rules are not the build boundary: `data/` is deliberately tracked, while
+the sdist configuration keeps it and the other excluded paths out of the archive.
+
+## Build backend
+
+The package uses hatchling through the unpinned `hatchling` build requirement in
+`pyproject.toml`. Uploading uses uv rather than the older twine-based action.
+
+## Other channels
+
+The ComfyUI nodes are maintained and versioned in their own repository. After
+the matching source distribution appears on PyPI, `distribute.yml` dispatches
+that repository's sync workflow with the exact library version and waits for it
+to finish. The sync updates the dependency floor, runs compatibility tests,
+bumps the node patch version, and publishes to the ComfyUI Registry only when
+those tests pass. Its daily schedule remains as a recovery path if a release
+dispatch is interrupted. The `COMFYUI_RELEASE_TOKEN` repository secret is a
+fine-grained token limited to the ComfyUI node repository, with Actions read and
+write access.
+
+## Agent skill
+
+The Agent Skill and Claude plugin live in this repository:
+
+- [`skills/remove-ai-watermarks/`](../skills/remove-ai-watermarks/) is the
+  portable Agent Skills package;
+- [`skills/.claude-plugin/plugin.json`](../skills/.claude-plugin/plugin.json)
+  is the Claude plugin manifest, with source `./skills` so an install copies
+  only the skill tree;
+- [`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json)
+  makes the repository a Claude Code marketplace;
+- [`.codex-plugin/plugin.json`](../.codex-plugin/plugin.json) is the Codex
+  plugin manifest, pointing at the same `./skills/` tree, with its icon in
+  [`assets/icon.svg`](../assets/icon.svg).
+
+They are not a fifth required release surface. A CLI change that affects
+command routing, extras, exit codes, mark keys, or the intended-use boundary
+must update the skill in the same commit. User-facing install steps live in
+[`docs/agent-skill.md`](agent-skill.md).
+
+After the skill files reach the default branch:
+
+- `npx skills add wiltodelta/remove-ai-watermarks` installs from GitHub;
+- SkillsMP can index the public `SKILL.md`;
+- Claude Code users can run `/plugin marketplace add wiltodelta/remove-ai-watermarks`.
+
+ClawHub publishes automatically: the `clawhub` job in `distribute.yml` compares
+the `SKILL.md` version with the published one on every GitHub Release and
+submits an update when they differ. After its local npm installation, the
+job invokes `./node_modules/.bin/clawhub` explicitly. It needs the
+`CLAWHUB_TOKEN` secret
+(create a dedicated token on clawhub.ai, not a device-flow one); without
+the secret the job skips with a notice. A submission waits for ClawHub
+security scans before the listing goes public, so a green job means
+"submitted", not "listed": verify the live catalog before calling the
+surface complete. The Claude community marketplace remains a manual,
+authenticated publish. Do not treat any listing as complete until the live
+catalog shows the skill.
+
+When `metadata.version` in `SKILL.md` changes, finish the catalog follow-up as
+part of the release that carries that version:
+
+1. Verify the automatic ClawHub submission and then the live version. Do not
+   publish it a second time by hand.
+2. If the Claude community directory listing is live, publish the updated
+   plugin through its authenticated submission surface and verify the listing.
+   If the original submission is still under review, leave it pending rather
+   than opening a duplicate.
+3. If the AI Skills Catalog listing is live, send the new skill version through
+   the update route supplied with its acceptance. The catalog stores compatible
+   packages as well as source metadata, so a GitHub push alone is not a verified
+   update. If no update control was supplied, contact the catalog or resubmit
+   and verify the resulting listing. Do not duplicate a pending initial review.
+4. If the OpenAI plugin directory listing has been approved, upload the new
+   plugin archive through the Platform portal and verify the published version.
+   Until the initial product-specific review is approved, there is no release
+   action beyond tracking that review.
+5. SkillsMP, skills.sh, AgenticSkills, and the awesome lists point at GitHub or
+   refresh from it. Do not resubmit a routine version bump. Contact them or open
+   a new PR only when their public description, category, tags, or repository
+   URL must change.
+
+The automated release workflow cannot perform the authenticated directory
+steps. A release with a changed skill version is not fully distributed until
+each applicable manual step is verified or explicitly marked pending because
+the catalog has not accepted the initial submission. The catalog-specific
+submission state and links live in
+[`docs/agent-skill.md`](agent-skill.md#where-the-skill-can-actually-be-listed).
+
+## MCP registry
+
+[`server.json`](../server.json) lists the PyPI package in the
+[official MCP registry](https://registry.modelcontextprotocol.io/) as
+`io.github.wiltodelta/remove-ai-watermarks`, started as
+the package with Python 3.12 and the complete public extras before `mcp`. The registry accepts it only after PyPI serves a
+release whose description, the README, carries the `mcp-name:` marker, and
+`tests/test_mcp_server.py` pins `server.json` to the package version. The listing
+is not a release surface that blocks a release.
+
+[`publish-mcp-registry.yml`](../.github/workflows/publish-mcp-registry.yml)
+runs via `workflow_run` once `Publish to PyPI` succeeds and lists that release
+from `server.json` at the release tag.
+GitHub OIDC proves ownership of the `io.github.wiltodelta` namespace, so no login
+or secret is stored. To list a version already on PyPI, dispatch the workflow
+with that version; a version the registry already lists is skipped.
+
+[`glama.json`](../glama.json) names the maintainer for Glama's claim flow.
+Client setup and the tool contract are in [the MCP server guide](mcp-server.md).
+
+## Release verification
+
+Forensic transports are versioned independently from the package. Before publishing
+a change to provenance metadata, provenance reports, broad forensic metadata, or
+pixel evidence, run their schema 1 contract tests. Additive fields are compatible;
+renaming a field, changing its type or meaning, changing a signal name or watermark
+label, or removing a field requires a new output schema. Add the new serializer
+without removing schema 1 so long-lived consumers can update separately. A package
+release must never silently substitute its latest schema when a caller explicitly
+requests an older supported one.
+
+After publication, the `verify-release.yml` workflow runs automatically once
+`distribute.yml` completes and checks every surface below. The automatic
+run downloads `distributed-release-*` from the exact triggering distribution
+run, verifies the run ID and artifact attempt, and selects the highest recorded
+attempt no later than the triggering attempt. This also handles reruns of
+failed jobs that reuse an earlier successful version-resolution job. A newer
+PyPI release cannot silently change the recorded target.
+Manual dispatch accepts an explicit version, or uses PyPI latest when omitted.
+Every check fails the job; none of
+them warns and continues, because a surface nobody can confirm is not a verified
+surface, with one deliberate exception noted below. The ComfyUI check reads the
+registry's JSON API and asserts that some published node version declares this
+library release. Dependencies are parsed as packaging requirements: the
+canonical package name must be `remove-ai-watermarks`, an exact `>=` floor
+must name the target release, and the full constraint must admit it. URL
+and environment-conditional requirements do not satisfy that contract.
+It deliberately does NOT proxy through the sync workflow's run
+status: the node repository also runs that workflow on a daily schedule, so a
+green nightly run says nothing about whether this release was synced.
+
+Read `/nodes/remove-ai-watermarks/versions`, not `latest_version` on the node
+object. The registry reviews an upload before activating it, and
+`latest_version` reports only the active version, so during that review window a
+correctly published version is indistinguishable from one that was never
+uploaded. A new version therefore sits in `NodeVersionStatusPending` for a while
+after a release; the check reports that state in the run summary and passes,
+because it is the registry's queue rather than an incomplete release. A missing
+version, or any other status, fails. The full checklist for completeness:
+
+- both wheel and source distribution exist on PyPI;
+- the package version matches the tag;
+- the Homebrew formula points to the new source distribution;
+- the distribution workflow completed successfully;
+- the ComfyUI Registry node requires the new library version;
+- the Hugging Face Space serves the new release: its `requirements.txt` pin
+  matches (raw file via the HF API), the runtime stage is `RUNNING` after the
+  rebuild, and one live `identify` and one live `visible` API call succeed
+  against the running Space;
+- a clean install can run `remove-ai-watermarks --version`.
+- when the Agent Skill version changed, every applicable manual catalog update
+  above is verified, or its initial submission remains pending without a
+  duplicate submission.
+
+A clean-install check run immediately after publication can fail with "no
+version of remove-ai-watermarks==X.Y.Z" even though the simple index already
+lists it: uv serves its cached pre-release view of the index. Re-run with a
+fresh cache (`UV_CACHE_DIR=$(mktemp -d)`) before treating it as a release
+failure.
+
+The ComfyUI sync resolves the version from the PyPI JSON API but installs its
+test dependency through pip's simple index, whose CDN edges can lag by
+minutes. `distribute.yml` gates every downstream job on both APIs listing the
+release, so it cannot dispatch that race again. The ComfyUI waiter itself has
+a clock: 0.40.0's node suite finished after the 15-minute poll, so it now
+waits 30 minutes and then accepts a registry row that already requires this
+library version. For an older distribution that started before the simple
+index caught up, rerun its failed `comfyui` job only when the registry still
+has no such row.
+
+The automatic `verify-release.yml` run after `distribute.yml` checks the
+Hugging Face Space pin. When `RAIW_HF_SPACE_TOKEN` is set, that pin lands
+during distribution. Without the secret, bump the pin by dispatching
+`pin-library.yml` in `wiltodelta/raiw-hf-space` and then dispatch
+`verify-release.yml` with the release version. Do not read a missing Space
+pin as a broken PyPI or Homebrew publish.
+
+If the release changed CLI routing, extras, exit codes, mark keys, or the
+intended-use boundary, confirm `skills/remove-ai-watermarks/` still matches.

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全问题 / Security
+    url: https://github.com/guanmo-ai/ui-moments/security/advisories/new
+    about: 请私下报告安全漏洞，不要公开提交 issue。
+  - name: 来源与署名问题 / Attribution
+    url: https://x.com/guanmo_ai
+    about: 如果你是某个作品的原作者，也可以直接在 X 上联系我们。

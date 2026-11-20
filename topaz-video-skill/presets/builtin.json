@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "categories": [
+    {"id": "upscale", "label": "放大", "description": "提高解析度，例如 1080p → 4K"},
+    {"id": "restore", "label": "修復", "description": "人臉、噪點、輕度修復，可保留尺寸"},
+    {"id": "special", "label": "特定素材", "description": "動畫 / CG，或只增強不改尺寸"}
+  ],
+  "presets": [
+    {"id": "enhance-2x", "label": "高清 2×", "category": "upscale", "detail": "通用放大",
+     "intents": ["放大兩倍", "變清楚", "1080p 到 4K", "720p 到 1440p"],
+     "choices": [["artemis", 2], ["rhea", 2], ["theia-v4", 2], ["gaia", 2]]},
+    {"id": "enhance-4x", "label": "高清 4×", "category": "upscale", "detail": "大幅放大",
+     "intents": ["放大四倍", "低解析度素材", "480p 到 4K"],
+     "choices": [["rhea", 4], ["proteus-v4", 4]]},
+    {"id": "portrait", "label": "人像修復", "category": "restore", "detail": "臉部與低質素材",
+     "intents": ["人臉", "訪談", "自拍", "人像"],
+     "choices": [["iris", 1]]},
+    {"id": "denoise", "label": "強力降噪", "category": "restore", "detail": "保留紋理",
+     "intents": ["噪點", "夜景", "暗光", "顆粒太多"],
+     "choices": [["nyx-v3", 1], ["nyx-v3", 2]]},
+    {"id": "fidelity", "label": "高保真", "category": "restore", "detail": "輕修復、保真",
+     "intents": ["已經不錯的素材", "只想輕微提升", "保持原貌"],
+     "choices": [["theia-v4", 2], ["theia-v4", 1]]},
+    {"id": "animation", "label": "動畫高清", "category": "special", "detail": "動畫與 CG",
+     "intents": ["動畫", "卡通", "CG", "遊戲畫面"],
+     "choices": [["gaia-animation", 2], ["gaia", 2]]},
+    {"id": "general", "label": "通用增強", "category": "special", "detail": "不改變尺寸",
+     "intents": ["不改尺寸", "只想更清晰", "壓縮痕跡"],
+     "choices": [["proteus-v4", 1], ["rhea", 1]]}
+  ]
+}

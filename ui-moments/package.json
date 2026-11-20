@@ -1,0 +1,46 @@
+{
+  "name": "ui-moments",
+  "private": true,
+  "description": "开源的 UI 交互与动效图鉴：原创控件与获授权的开源组件，逐项标注来源、许可和改动",
+  "license": "MIT",
+  "author": "观默 (https://x.com/guanmo_ai)",
+  "homepage": "https://guanmo-ai.github.io/ui-moments/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guanmo-ai/ui-moments.git"
+  },
+  "bugs": {
+    "url": "https://github.com/guanmo-ai/ui-moments/issues"
+  },
+  "keywords": [
+    "ui",
+    "motion",
+    "animation",
+    "loaders",
+    "micro-interactions",
+    "design",
+    "gallery"
+  ],
+  "engines": {
+    "node": "^22.12.0 || >=24"
+  },
+  "scripts": {
+    "setup": "npm ci && npm ci --prefix gallery/date-picker && npm ci --ignore-scripts --prefix gallery/loading-ui",
+    "build": "npm --prefix gallery/date-picker run build && npm --prefix gallery/loading-ui run build && node gallery/svg-spinners/build.mjs",
+    "lint": "npm --prefix gallery/date-picker run lint",
+    "predev": "npm run build",
+    "dev": "python3 -m http.server 5173 --bind 127.0.0.1",
+    "dev:date": "npm --prefix gallery/date-picker run dev",
+    "record:toggle": "node tools/record.js gallery/day-night-toggle/index.html out/day-night-toggle.mp4 --w 1440 --h 1080 --scale 2",
+    "record:light-scenes": "node tools/record.js gallery/light-scenes/index.html out/light-scenes.mp4 --w 1440 --h 900 --scale 2",
+    "package:site": "node tools/package-site.mjs",
+    "test": "npm run test:ldrs && npm run test:site && npm run test:loading-ui && npm --prefix gallery/date-picker test",
+    "test:browser": "node --test tools/browser.test.mjs",
+    "test:ldrs": "node --test tools/ldrs.test.mjs",
+    "test:site": "node --test tools/site.test.mjs",
+    "test:loading-ui": "node --test gallery/loading-ui/tools/integration.test.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Topaz Video"
+  short_description: "用本機已授權的 Topaz Video 放大、修復、降噪影片；先預覽再匯出"
+  default_prompt: "使用 $topaz-video 處理這支影片：先檢查機器與素材，用選單讓我選自動或手動，預覽確認後再匯出到原片旁邊。"

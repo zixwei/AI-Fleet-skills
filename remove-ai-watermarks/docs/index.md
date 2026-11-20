@@ -1,0 +1,72 @@
+# Documentation
+
+This documentation is split by purpose. Start with the user guides if you want
+to run the tool. Use the maintainer references only when changing the code.
+
+## User guides
+
+| Page | Use it when |
+| --- | --- |
+| [Installation](installation.md) | You need the CLI, an optional model backend, or a development environment. |
+| [CLI guide](cli.md) | You want a command for an image, video, text file, a directory, or a specific watermark type. |
+| [Python API](python-api.md) | You want to call the package from Python. |
+| [Supported signals](supported-signals.md) | You need to know which visible marks, metadata formats, text wrappers, and invisible signals are covered. |
+| [Known limitations](known-limitations.md) | You need the quality, device, format, or verification boundaries. |
+| [Source-pipeline classification](source-classify.md) | You want an abstaining 10-provider export-pipeline and model-version signal after metadata removal (`classify-source` / `classify_source`). |
+| [Scope, safety, and legal notes](legal-and-safety.md) | You need the intended use and legal context. |
+
+## Maintainer references
+
+| Page | Purpose |
+| --- | --- |
+| [Module internals](module-internals.md) | Current architecture, invariants, and regression guards by module. |
+| [Development](development.md) | Environment setup, dependency recovery, CI behavior, and fixture policy. |
+| [Watermark benchmark kernel](benchmark-kernel.md) | Reproducible local detection, removal-observation, and fidelity measurements. |
+| [Code provenance](code-provenance.md) | Required notices for licensed derivative work. |
+| [Verification plan](verification-plan.md) | Verification methods, completed measurements, and remaining validation gaps. |
+| [Audio and video watermark removal](audio-video-removal.md) | Implementation map, coverage evidence, and next requirements for audio and video removal. |
+| [Non-SynthID video coverage](non-synthid-video.md) | Evidence map separating video metadata declarations, open-model message decoding, and provider verification. |
+| [Real video and audio roadmap](media-removal-roadmap.md) | Ranked experiments, competitor and paper evidence, provider verifiers, and native product sample acquisition. |
+| [Release and distribution](release-and-distribution.md) | PyPI, Homebrew, Hugging Face Space, `wiltodelta/raiw-source-classify` Hub model, `wiltodelta/ai-image-detector-leaderboard` Space, ComfyUI Registry, and the release workflow. |
+| [Agent skill](agent-skill.md) | Install and maintain the published Agent Skill, the Claude plugin and the Codex plugin. |
+| [MCP server](mcp-server.md) | Connect an MCP client to `remove-ai-watermarks mcp`, or publish it to the MCP registry. |
+| [Watermarking landscape](watermarking-landscape.md) | Vendor signals and detection approaches. |
+| [SynthID technical reference](synthid.md) | Mechanism, provenance, robustness, regeneration. |
+
+## Research archive
+
+These pages record experiments and the evidence behind past decisions. They are
+not command references and may describe prototypes that were later removed.
+The current behavior is defined by the code, tests, README, and user guides.
+
+- [ControlNet removal research](controlnet-removal-pipeline-research.md)
+- [Qwen improvement research](qwen-improvement-research.md)
+- [Doubao reverse-alpha research](research-doubao-distillation.md)
+- [AI-generated image classifiers](ai-generated-image-classifiers.md) (retired photo AI-versus-camera freeze study; superseded by `source-classify`)
+- [SynthID source classifiers](synthid-classifiers.md) (metadata-free OpenAI/Gemini source finding and provider-lineage experiments)
+- [Source-pipeline classifier model card](source-classify-hf/README.md) (published derivative weights, aggregate evaluation, and intended-use boundary)
+- [SynthID local detector research](synthid-detector-research.md)
+- [SynthID mark removal research](synthid-removal-research.md)
+- [SynthID identity research](synthid-robust-identity-research.md)
+- [SynthID identity follow-up](synthid-robust-identity-research-2026-06-08.md)
+- [Seedance video study](seedance-video-study.md) (local comparison runner and provider-evidence gates)
+- [Video and audio methods and competitors](media-removal-research.md) (evidence review behind the roadmap)
+- [Video and audio provider verifiers](media-provider-verifiers.md) (dated verifier matrix by check type)
+- [Real product sample corpus](media-sample-corpus.md) (provenance tiers for native product samples)
+- [Code and documentation audit](code-and-documentation-audit.md) (2026-09-08 review snapshot and repair status)
+- [Real video and audio evidence log](media-removal-evidence-log.md) (chronological audio and video oracle tranches and experiment cards)
+- [Video SynthID quality research](video-synthid-quality-research.md)
+- [OpenAI SynthID oracle ladders](synthid-oracle-ladders.md) (routing hub)
+- [Provider oracle tooling](provider-oracles.md) (Google, OpenAI, Microsoft, and Meta execution surfaces)
+- [SynthID detector and removal plan](synthid-detector-removal-plan.md) (chronological mixed archive)
+- [Text protection research](text-protection-research.md)
+- [Text watermark and provenance research](text-watermark-research.md) (C2PA 2.3/2.4 text/HTML Appendices A.7/A.8/A.9, `VSRMark`, Unicode steganography, and statistical token watermarks in Google `SynthID-Text`, Anthropic Claude Fable 5.2 / Mythos 5.2, OpenAI GPT-6 Astra `textGrain`, KGW, and Unigram)
+- [Local text-watermark validation](text-watermark-validation.md) (real local-model rewrites, known reference keys, frozen controls and explicit refusals; not a private provider-detector result)
+- [Audio provenance experiment](audio-provenance-experiment.md) (local AudioSeal matched-oracle study of video audio tracks across visual cleaning)
+- [VideoSeal temporal evaluation](videoseal-temporal-evaluation.md) (per-frame scores, aggregation matrix, and crf decay on synthetic and real clips)
+- [Temporal video inpainting evaluation](video-inpainting-research.md) (VACE and ROSE against the shipped visible-video fills)
+- [Watermark forgery study](watermark-forgery-study.md) (four-state model and double-embedding: the last writer wins under both oracles)
+- [C2PA resolution research](c2pa-resolution-research.md) (measured resolver contracts, the privacy gradient, and the decision to never resolve over the network)
+- [External benchmark licensing](external-benchmark-licensing.md) (ETI license-blocked, W-Bench dataset MIT with non-commercial code, verified 2026-09-07)
+- [Chroma1 engine research](chroma1-engine-research.md)
+- [Research sweep, September 2026](research-sweep-2026-09.md) (survey of every covered area, where each finding landed, and open items)

@@ -1,0 +1,227 @@
+# Real video and audio removal evidence log
+
+This archive preserves the chronological experiment cards and provider-oracle
+tranches behind the [real video and audio removal roadmap](media-removal-roadmap.md).
+Current shipped behavior, certified operating points, and active engineering
+priorities live in [the roadmap](media-removal-roadmap.md),
+[module internals](module-internals.md), [audio/video coverage](audio-video-removal.md),
+and the tracked oracle manifests under [`data/evaluations/`](../data/evaluations/).
+
+## Experiment cards
+
+Reuse existing [native-clock AudioSeal qualification](audio-video-removal.md#native-clock-audioseal-compatibility)
+for the published LTX marking stack. Its opt-in public adapter and model pack
+are concrete reference evidence, distinct from hosted LTX Studio. Preserve
+the validated 24/48 kHz receiver paths alongside 16 kHz; a resampling-only
+negative can otherwise hide the mark. Existing musical-negative Perth
+cross-reactions also mean a discovery positive on music cannot identify a
+producer's deployed scheme.
+
+### Initial full-file vocoder result
+
+The pinned BigVGAN round trip was run on both full clean/marked Chatterbox
+Nano pairs. Both marked sources, rate-only controls and reconstructed outputs
+remained positive for the pinned local Perth receiver; clean twins stayed
+negative. The files retained their native sample counts, but correlation found
+nonzero reconstruction lags. This rejects promotion of this plain vocoder arm
+for the tested cohort. It remains a useful frontend control for generative
+enhancement/diffusion, with no claim about hosted Resemble, music, stereo, or
+other proprietary schemes. Full private result manifests retain parameters,
+hashes, saved-output readings and alignment measurements.
+
+The ordinary AAC comparator retained the local mark, while the existing
+EnCodec 6 kbps arm returned negative on both marked pairs with clean negatives,
+unchanged sample counts and no measured global lag. AAC and EnCodec were not
+matched for distortion, so this does not establish an efficacy/quality
+advantage at equivalent fidelity. EnCodec remains a candidate for quality and
+production qualification; the vocoder remains a control. Transcript, identity,
+listening and final-mux checks are still separate gates.
+
+A subsequent fixed exploratory rate grid retained the mark through AAC at
+6, 12, 24 and 48 kbps on both marked recordings. EnCodec at 12 kbps gave mixed
+outcomes, and 24 kbps remained positive on both. Clean controls stayed negative.
+Together with the original 6 kbps arm, this motivates operator-specific
+rate/fidelity testing rather than a claim that low nominal bitrate alone
+explains the result. The grid reused observed pairs and is not a new untouched
+holdout; sample-error and spectral metrics do not establish perceptual matching.
+
+Every experiment freezes an input manifest, model/code/weight revisions,
+parameters, seeds, preprocessing, output encoding, controls, measurement scope,
+and falsification before any external verdict. The result manifest is append-only
+and retains failures. Selection may use local quality checks; it must not tune
+candidates adaptively against an external oracle.
+
+### Audio tranche
+
+The retained native-provider tranche established exact-file SynthID-positive
+audio baselines. The strongest lineage is the publication-cleared Flow Veo
+fixture: its decoded PCM matches the previously verified WAV, and two Gemini
+slots explicitly identified SynthID on both the native WAV and its PCM16
+control. Two retained Spaces recordings also have explicit Gemini SynthID
+positives, although their containers have prior visual editing history. Their
+WAVs match the retained containers' decoded PCM; this does not establish an
+unedited chain back to generation. Reuse these historical verdicts only for
+their exact upload hashes and verification surfaces.
+
+The existing combined spectral/EnCodec arm remained explicitly positive on
+the Veo recording. Responses to the other two combined candidates were
+indeterminate, not qualified negatives. A direct detector portal error supplies
+no audio verdict. The subsequent general-audio vocoder and codec comparison
+used these actual source-positive recordings rather than assuming the local
+Perth result transfers to SynthID. Full BigVGAN and codec-only EnCodec arms,
+with their model-rate round-trip controls, preserved saved native rates,
+channel counts and sample counts. EnCodec retained stronger source-relative
+waveform and stereo diagnostics than independent-channel vocoding in this
+cohort.
+
+The first frozen native Veo audio pass subsequently produced an explicit
+Google SynthID-negative for the saved BigVGAN L/R output, with an explicit
+source-positive in the same Gemini account/pass. The EnCodec6 output remained
+explicitly SynthID-positive there. Independent-channel vocoding changed stereo
+coherence; a separate fixed M/S quality arm improved measured channel
+correlation and side/mid power on Veo and the two retained speech recordings.
+Once Chrome transport recovered, the frozen native Veo M/S file received
+explicit SynthID-negative replies in separate configured accounts, with exact
+source and resampling-only files positive in those same passes, whereas a
+different native Veo Lite generation and an independent speech pass retained
+SynthID after the same fixed BigVGAN M/S processing. Thus plain BigVGAN M/S has
+a scoped success and real counterexamples, not a general removal qualification;
+it remains explicit (`--method bigvgan`), excluded from automatic selection, and
+cannot verify SynthID itself.
+
+The licensed AudioSR Basic follow-up exercised conditional diffusion with strict
+full-state loading and paired local Perth controls. Its official
+low-frequency-restored output retained Perth, while removing source
+low-frequency reinsertion degraded words and speaker consistency. MetricGAN+
+and UNIVERSE++ likewise retained local Perth on matched speech pairs. On a
+complete native long-speech comparison (`LONG03`), EnCodec 6 was negative over
+the whole file but positive in individual windows; Mimi passed `LONG03` WAV and
+AAC MP4 window scans on the marked twin but regularized a word (`"wind"` to
+`"wooden"`) and crossed Perth after AAC (`0.6262`) on held-out `LONG04`.
+
+Matching FocalCodec `50 Hz` safetensors against its historical `v0.0.1` source
+schema (`cad8bf81d70875f756770449c34909d8b0951642`) with symmetric `(40, 40)`
+WavLM boundary context and source-conditioned pause gating
+(`resynthesize_conditioned` in `audio_focalcodec.py`) passed paired `LONG03`,
+`LONG04`, and held-out `LONG05` local Perth/ASR/speaker/timing gates, and
+returned `5/5` `not_detected` verdicts on the initial `gemini-web` cohort, but
+remained `detected` (`0:00-0:10`) on the held-out 10-second
+`google-gemini-omni-flash-api` track. By contrast, 3-codebook `44.1 kHz` `DAC`
+Mid/Side (`--method dac`, `descript/dac_44khz`) returned `4/4` `not_detected`
+verdicts across all source-positive native Google audio tracks (including
+`google-gemini-omni-flash-api`, certified in
+[`data/evaluations/audio-synthid-oracle.csv`](../data/evaluations/audio-synthid-oracle.csv))
+and cleared `elevenlabs-api` across multi-window native MP3 exports while
+preserving `22.05 kHz` stereo bandwidth. A follow-up 48 kHz stereo music
+comparison across `AudioSeal` and `WavMark` carriers measured `DAC` (`44.1 kHz`,
+`q=3`: both `verified=True`, `MR-STFT 1.11-1.12`, `Mel 4.06-4.19 dB`,
+`Side/Mid drift 0.21-0.54 dB`) ahead of `facebook/encodec_48khz` (`6 kbps`: both
+`verified=True`, `MR-STFT 1.99`, `Mel 4.15-4.26 dB`, `Side/Mid drift 2.40-2.95 dB`;
+`12 kbps` and `24 kbps` retained `AudioSeal`) and far ahead of `24 kHz`
+`encodec` (`6 kbps`: retained `AudioSeal`, `Mel 18.50-18.59 dB`), keeping `DAC`
+as the studio neural-codec baseline entering Phase 1.
+
+### Video tranche
+
+On the 121-frame `854x480 @ 24 fps` Seedance forest cohort, zero-noise
+posterior-mode temporal bottlenecks (`CogVideoX` FP16, `VidTok` v1.1 causal FSQ,
+and zero-noise `AutoencoderKLWan`) preserved native frame clocks and stream-copied
+audio packets, but all remained `detected` on CapCut alongside matched silent
+codec controls, whereas extracted M4A audio was `not_detected`. Conditioned
+`VACE` failed its frozen prefix structure gate. By contrast, CPU/MPS
+guide-registered sigma-1 texture transfer (`seedance-experimental`) and NVIDIA
+H100 CUDA 3D `Wan 2.1` video diffusion (`--profile wan21-seedance-experimental`,
+`strength=0.12`) returned offline-verified CapCut `not_detected` receipts on
+both `forest` and held-out `bottle` (`34.42 dB PSNR`, `TRR 1.0682` vs
+`31.85 dB`, `TRR 1.3854`), while Dreamina and BytePlus enterprise API exports
+cleared via stream-copy C2PA metadata stripping alone.
+
+On the Google Veo visual cohort (`flow-001`, `lite-003`, 240-frame
+`google-gemini-omni-flash-api`, and 96-frame `veo-3-1`), matched silent H.264
+controls and native-grid zero-noise reconstructions remained `detected`. Raising
+2D `sd-vae-ft-mse` (`noise_std=0.15`) from `512 @ 12 fps` to `768x432 @ 24 fps`
+cleared `flow-001` (`not_detected`) and all 25 sliding `VideoSeal 1.0` windows
+(with `temporal_stabilize=True` reducing `temporal_residual_ratio` by
+`10.9-30.7%`), but remained `detected` on textured `lite-003`, keeping the 2D
+spatial-VAE default pinned at `512 @ 12 fps`. On NVIDIA CUDA, 3D causal
+`Wan 2.1` diffusion (`--profile wan21-synthid-experimental`, `strength=0.38`,
+streaming `chunk_frames=193` / `overlap_frames=17`) returned `not_detected`
+across all tested silent `1280x720 @ 24 fps` deliveries and combined
+full-audiovisual (`Wan 2.1` + `DAC` AAC-192k) MP4 deliveries, certified on
+publication-cleared carriers in
+[`data/evaluations/video-wan-oracle.csv`](../data/evaluations/video-wan-oracle.csv).
+
+Subsequent Stage 2/3 provider-oracle runs wired `elevenlabs-api`,
+`cartesia-api`, `cartesia-web`, `resemble-api`, and `kling-web` into
+`scripts/provider_oracles.py`: `meta-web` verified positive-to-negative video
+removal on production `VideoSeal v4` (`Muse Image 1`); and authenticated
+`kling-web` runs across native Kling MP4 and PNG exports proved that Kling's
+`"Invisible watermark"` row on MP4 reads the H.264 `kling-ai` SEI tag (`Detected
+-> Not detected` under lossless `remove_video_metadata` alone).
+
+In the Phase 1-3 audio/video architecture pass (2026-11-18):
+- **48 kHz Stereo Music & 16 kHz Speech Bottleneck Benchmark**: across paired 48 kHz
+  stereo music (`AudioSeal`, `WavMark`) and 16 kHz speech (`Perth`) carriers,
+  3-codebook `DAC 44.1 kHz` (`--method dac`, `cpu`/`mps`/`cuda`) achieved `verified=True`
+  across all three schemes with the lowest spectral distortion (`MR-STFT = 1.1098`,
+  `Mel L1 = 4.289 dB`, `Side/Mid drift = 0.208 dB` on 48 kHz music) and ~100x faster
+  Apple Silicon `mps` runtime than `BigVGAN v2` (`plain-bigvgan` `MR-STFT = 1.3093` and
+  pre-warped `bigvgan-mel` `MR-STFT = 1.6349` both retained `Perth` on 16 kHz speech;
+  `encodec48` 6 kbps scored `MR-STFT = 1.9863`, `Side/Mid drift = 2.398 dB`). Tagged
+  `5.1` and `7.1` surround stem decomposition (`FL/FR` M/S, `FC` mono, `<120 Hz`
+  Butterworth LFE, surround M/S pairs) and 16/24-bit PCM sample-format preservation
+  shipped on the neural audio path alongside `--vendor` cohort routing.
+- **Self-Calibrated Multi-Frame `YCrCb` Reverse Alpha Unblending**: chaining stepwise
+  `PyrLK + RANSAC` affine transforms across moving context rings to form median donor
+  references (`estimate_clip_alpha_matte` + `unblend_ycbcr_roi` in `video_temporal.py`)
+  achieved `Alpha MAE = 0.0010` and `36.98 dB` ROI PSNR (`+20.50 dB` over spatial Telea's
+  `16.48 dB`) while leaving 100% of clean background pixels inside the detection box
+  untouched. `dreamina` and `wan` visible video detectors (`10` registered video marks
+  total), user-directed `video erase --region --frames`, 10-bit HDR (`yuv420p10le`,
+  `bt2020nc`, `smpte2084`/`arib-std-b67`) preservation, fMP4 `emsg` + H.264/HEVC AI SEI +
+  Matroska `application/c2pa` attachment scrubbing, blind `VideoSeal`/`PixelSeal`/`ChunkySeal`
+  (`1024`-bit) presence detection (`video message detect`), and CPU prompt-offloaded
+  `Wan 2.1` (`~3.4 GiB` accelerator footprint, `cuda` and explicit `mps`, up to 5-minute
+  1080p streaming budget) all shipped with unit and integration coverage.
+
+
+In the Wave 2 audio/video market-leadership pass (2026-11-20):
+- **Pure-PyTorch `SNAC 44.1 kHz` (`--method snac`, `hubertsiuzdak/snac_44khz@873ebef9718b89660340c6f55a2b515e98cfa1d9`, MIT)**:
+  across `q in {2, 3, 4}` multi-scale RVQ codebooks (`vq_strides = [8, 4, 2, 1]`),
+  retaining all 4 codebooks (`q=4`) preserved `Perth` on 16 kHz speech via the
+  finest `stride=1` residual, whereas fixing `FIXED_QUANTIZERS = 3` (`strides = 8, 4, 2`)
+  cleared `AudioSeal`, `WavMark`, and `Perth` (`3/3` `not_detected`, `quality_passed=True`,
+  `Side/Mid drift = 2.66 dB`) while running in `4.56 s` on Apple Silicon `mps` (`3.85x`
+  faster than CPU `DAC`). `DAC` (`MR-STFT = 1.11`, `Mel = 4.06 dB`) remains the
+  highest-fidelity `--vendor` default, while `--method snac` ships as the fast
+  pure-PyTorch 44.1 kHz alternative across mono, raw M/S stereo, and `5.1`/`7.1`
+  surround stems.
+- **Wan 2.1 Zero-UMT5 Prompt Cache, 18-Mark Visible Video Suite & AV1 `OBU_METADATA` Scrubbing**:
+  persisting the static neutral prompt embedding on disk skips downloading and loading
+  the `22.7 GB` `UMT5-XXL` encoder on warm cache hits, unlocking `WAN21_AUTO_MAX_FRAME_PIXELS = 1920 * 1080`
+  and `WAN21_MIN_CUDA_VRAM_BYTES = 8 GiB` (with `WAN21_COMPACT_CHUNK_FRAMES = 81` step-down,
+  while keeping `--profile auto` off `mps`). Eight additional visible video detectors
+  (`jimeng`, `jimeng_pill`, `qwen`, `yuanbao`, `baidu`, `runninghub`, `microsoft`,
+  `generic_ai_label`) calibrated at `0/71` false positives across tracked `data/` MP4s
+  expanded `VIDEO_VISIBLE_MARKS` to `18`, paired with spatially disjoint dual-mark
+  co-selection, `--trim-bumper` outro trimming, `erase --track` pyramidal LK + Sobel/NCC
+  tracking, single-pass `visible -> invisible` frame streaming, `.webm` video/audio
+  support, and HDR-preserving AV1 `OBU_METADATA` -> `OBU_PADDING` lossless scrubbing
+  across ISOBMFF `av01` and Matroska/WebM `V_AV1` (recomputing EBML `0xBF` `CRC-32`).
+- **Head-to-Head Multi-Surface Competitor Benchmark (`scripts/media_removal_benchmark.py`)**:
+  evaluated across a 10-case manifest spanning clean negative controls (`audioseal-mono-clean`,
+  `videoseal-clean`), 48 kHz stereo music (`AudioSeal` under `auto`, `dac`, and `snac`),
+  stereo M/S `WavMark`, 16 kHz `Perth` (`dac` and `snac`), `VideoSeal` video, and the
+  4-layer audiovisual clip (`TC260 AIGC` metadata + visible `Kling` + `VideoSeal` pixels +
+  `AudioSeal` audio):
+  - `remove-ai-watermarks` (Wave 2): **`10/10 passed (100%)`** (`0` failed, byte-exact
+    skip on both clean controls, `verified_removed=True` and `quality_passed=True` on all
+    8 marked cases, `31.38 dB PSNR` / `0.9641 SSIM` on `video-all-4layer-marked`).
+  - Open-source lossy transcode + resample baseline (`ShadowMarkDefense`-style `24 kHz`
+    `AAC 96k` bounce + `H.264 CRF 28`): **`1/10 passed (10%)`**, `9/10 failed` (retained
+    `AudioSeal`, `WavMark`, and `Perth`, left visible `Kling` + `TC260 AIGC` + `AudioSeal`
+    on `video-all-4layer-marked`, and degraded both clean controls).
+  - Open-source spectral bandstop + blur baseline (`watermarks-remover`-style `3-7 kHz`
+    bandreject + `10 kHz` lowpass + `gblur=1.8` + `H.264 CRF 26`): **`1/10 passed (10%)`**,
+    `9/10 failed` (retained `AudioSeal`, `WavMark`, and `Perth`, left visible `Kling` +
+    `AudioSeal` on `video-all-4layer-marked`, and degraded both clean controls).
