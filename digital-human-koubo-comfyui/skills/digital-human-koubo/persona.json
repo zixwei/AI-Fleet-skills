@@ -1,0 +1,130 @@
+{
+ "name": "白背心数字人",
+ "renoise": {
+  "reference_material": "material:329814",
+  "multiview_task": "task:357546",
+  "note": "参考图是用户自己 Grok 视频里的一帧（正脸、闭嘴、头发不挡脸）。换账号或素材过期时，用 assets/avatar_ref.jpg 重新 upload_files 拿新 material id。"
+ },
+ "look": "年轻东亚女性，黑色长发带脸侧碎发，白色罗纹背心，竖屏自拍构图，室内自然光",
+ "voice": {
+  "engine": "grok-native",
+  "desc": "young friendly female voice, clear and patient but lively, natural pace",
+  "speed_cps": 5.4,
+  "alt_clone": "MiMo mimo-v2.5-tts-voiceclone，参照用 3 段 Grok 口播拼的 ≥12 秒干声（见 references/voice.md）"
+ },
+ "model": {
+  "name": "grok-video-1.5",
+  "ratio": "9:16",
+  "full_shot_resolution": "720p",
+  "pip_shot_resolution": "480p",
+  "max_seconds": 15,
+  "price_per_second": {
+   "720p": 17,
+   "480p": 10
+  }
+ },
+ "acts": {
+  "full": "warm eye contact, expressive face, natural hand gestures",
+  "pip": "calm explaining tone, small nods, occasionally glancing down as if reading a screen, small pointing gestures",
+  "vlog": "relaxed lifestyle vlogger sharing a favorite tool, natural small head tilts and nods, one hand comes up briefly in a casual gesture",
+  "depth": "medium shot with generous headroom and plain background visible on both sides of the head and shoulders (for text-behind-subject graphics), calm confident delivery"
+ },
+ "prompt_template": "The young woman in {ref} talks straight into her phone's front camera, same selfie framing, lighting and outfit as the reference, like a friendly Chinese tech vlogger {purpose}: {act}. Handheld selfie feel with only a very slight natural sway. She speaks Mandarin Chinese, clearly lip-synced, in a {voice}:\n“{line}”\nSound: only her voice and quiet room tone, no music, no subtitles, no on-screen text.",
+ "disclosure": "内容由 AI 数字人演绎",
+ "other_hosts": {
+  "me": {
+   "name": "用户本人数字人（藏青 polo）",
+   "reference_material": "material:338484",
+   "ratio": "16:9",
+   "note": "用户本人照片，只给用户自己的片子用；横屏照直接出横屏口播",
+   "voice": "warm, steady, confident male voice around 35 years old, natural pace",
+   "prompt_template": "The man in {ref} talks straight to the camera, same framing, gray studio backdrop, navy polo shirt, glasses and soft lighting as the reference, like a friendly tech blogger {purpose}: {act}. Locked-off camera, no zoom. He speaks {language}, clearly lip-synced, in a {voice}:\n“{line}”\nSound: only his voice and quiet room tone, no music, no subtitles, no captions, no on-screen text of any kind."
+  },
+  "cat": {
+   "name": "橘猫店长",
+   "still_task": "task:360205",
+   "ratio": "9:16",
+   "voice": "cute, playful small high-pitched voice",
+   "note": "提示词要写 its mouth clearly opens and closes in sync with the words"
+  },
+  "dog": {
+   "name": "柴犬新闻主播",
+   "still_task": "task:360206",
+   "ratio": "16:9",
+   "voice": "deep, serious male TV news-anchor voice"
+  }
+ },
+ "languages_tested": {
+  "en": "100%",
+  "ja": "100%",
+  "ko": "94%",
+  "fr": "100%",
+  "es": "100%",
+  "ar": "99%",
+  "note": "2026-10 第三期实测 whisper 回听准确率；台词提前翻好再写进提示词"
+ },
+ "comfy": {
+  "note": "本地 ComfyUI 流程（scripts/comfy_batch.py）：Qwen3-TTS 克隆配音 → MiniMax H3 Reference to Video（<Audio 1> fully_copy 对口型）→ 原配音合回。2026-11-12 实测 10 秒段 672×1216 4 步约 8 分钟。",
+  "url": "http://127.0.0.1:8188",
+  "workflows": {
+   "tts": "comfy/tts_clone.api.json",
+   "video": "comfy/h3_r2v_audio.api.json"
+  },
+  "fps": 24,
+  "max_line_seconds": 14.0,
+  "tail_seconds": 0.3,
+  "tts_model": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+  "prompt_template": "subject_definitions:\n<Subject 1> is the {who} in <Picture 1>: {look}.\n<Audio 1> is the complete spoken {lang} vocal track of <Subject 1> (S1), {voice}.\n\nsummary:\n[reference generation + audio reuse] The target video is a single continuous {framing} talking-head shot of <Subject 1> {purpose}, with lip movements precisely synchronized to <Audio 1>, which is reused as the complete final audio track.\n\nretention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - face, hairstyle, outfit, framing and lighting stay identical to <Picture 1>.\n<Audio 1>: fully_copy - <Audio 1> is reused 1:1 as the target video's complete final audio track, and every syllable drives the matching mouth shape of <Subject 1>.\n\ndetailed_description:\n[Shot 1] {shot_desc} <Subject 1> (S1) speaks {lang} with lips, jaw and tongue clearly lip-synced to every syllable of <Audio 1>: <d>[{lang_tag}] {line}</d> {act}. {camera} During any silent pause in <Audio 1> her lips rest gently closed. After the last word {pron} closes {poss} lips into a soft smile and holds eye contact until the final frame. No subtitles, no captions, no on-screen text.\n\noverall_soundscape: Only <Audio 1> is heard, with quiet indoor room tone underneath; no added sound effects.\n\nnon_diegetic_music: None.",
+  "hosts": {
+   "ella": {
+    "avatar": "assets/avatar_ref.jpg",
+    "size": [
+     672,
+     1216
+    ],
+    "voice_ref": "assets/voice_ref_ella.flac",
+    "voice_ref_text": "大家好呀，今天跟你聊一个特别实用的小技巧：只要一张照片加一句话，就能做出一条数字人口播视频，而且整个过程全部在本地完成。",
+    "who": "young East Asian woman",
+    "pron": "she",
+    "poss": "her",
+    "framing": "vertical handheld selfie",
+    "look": "long black hair with loose strands framing her face, pink lips, a small mole on her chest, a white ribbed tank top, close selfie framing under warm natural indoor light against a plain dark ceiling",
+    "voice": "a clear, lively young female voice",
+    "shot_desc": "A vertical handheld selfie close-up of <Subject 1>, framed from the top of her head to her chest exactly as in <Picture 1>, warm sunlight across her face, plain dark ceiling behind her. She looks straight into the lens with warm eye contact and a relaxed, friendly smile.",
+    "camera": "The phone camera has only a very slight natural handheld sway, no zoom, no cuts.",
+    "look_person": "long black hair with loose strands framing her face, pink lips, a small mole on her chest, a white ribbed tank top"
+   },
+   "annie": {
+    "note": "2026-11-16 更新：以用户确认的浅绿针织开衫、米白罗纹内搭、桌前坐姿为统一形象。master 与 vertical.avatar 使用同一竖屏定妆照，avatar 使用配套横屏图；三份资产均采用拉近的腰部以上中景，减少头顶与桌面留白；横屏双手位于画面下沿并部分裁切，竖屏保留双手。背景均为暖米色墙面，点缀小幅抽象挂画、暖光壁灯及小型壁挂绿植，左侧陶瓷杯、右侧桌面麦克风。音色沿用 Qwen3-TTS VoiceDesign，参照文本见 voice_ref_text。竖屏段落写 \"ratio\": \"9:16\" 或命令行加 --ratio 9:16 时自动换用。size 为视频输出尺寸，不是原始图片尺寸。",
+    "master": "assets/host_annie_medium.png",
+    "avatar": "assets/host_annie_studio.png",
+    "size": [
+     1216,
+     672
+    ],
+    "voice_ref": "assets/voice_ref_annie.flac",
+    "voice_ref_text": "大家好，欢迎来到今天的知识小课堂。今天我们不讲复杂的公式，只用一个简单的例子，帮你把这件事想明白。听完这期，你会发现，理财其实没有那么难。",
+    "voice_design": "二十多岁的年轻女性，声音温和知性、干净清亮，普通话标准，咬字清楚，语速适中偏稳，语气亲切自然、带一点笑意，像知识类视频博主在耐心讲解，不夸张不做作。",
+    "who": "young East Asian woman",
+    "pron": "she",
+    "poss": "her",
+    "framing": "locked-off landscape waist-up medium",
+    "look": "long dark brown hair with wispy bangs and softly tucked sides, a sage-green knitted cardigan over an ivory ribbed scoop-neck top, seated at a light wooden table against a warm beige matte studio wall with a small abstract framed print on the left, a warm wall sconce and a small wall-mounted planter on the right, softly blurred with generous negative space, a cream ceramic mug on the left and a black tabletop microphone on the right, clean uncluttered background",
+    "voice": "a gentle, clear, intellectual young female voice",
+    "shot_desc": "A locked-off landscape waist-up medium shot of <Subject 1>, closely framed exactly as in <Picture 1>. Her head and upper body fill most of the image height with minimal headroom; her hands appear partially at the lower edge, with the mug and microphone bases cropped by the frame. The warm beige wall has three softly blurred accents: an abstract framed print on the left, a warm wall sconce and a small wall-mounted planter on the right. She looks straight into the lens with calm, friendly eye contact and a gentle smile. Preserve this close medium framing throughout.",
+    "camera": "Locked-off camera on a tripod, no zoom, no cuts.",
+    "look_person": "long dark brown hair with wispy bangs and softly tucked sides, a sage-green knitted cardigan over an ivory ribbed scoop-neck top",
+    "vertical": {
+     "avatar": "assets/host_annie_vertical.png",
+     "look": "long dark brown hair with wispy bangs and softly tucked sides, a sage-green knitted cardigan over an ivory ribbed scoop-neck top, seated at a light wooden table against a warm beige matte studio wall with a small abstract framed print on the left, a warm wall sconce and a small wall-mounted planter on the right, softly blurred with generous negative space, a cream ceramic mug on the left and a black tabletop microphone on the right, clean uncluttered background",
+     "size": [
+      672,
+      1216
+     ],
+     "framing": "locked-off vertical waist-up medium",
+     "shot_desc": "A locked-off vertical waist-up medium shot of <Subject 1>, closely framed exactly as in <Picture 1>, with minimal headroom, her head, shoulders, torso and both hands visible, and only a narrow strip of tabletop at the bottom. Her face is large and clearly readable. The warm beige wall has a softly blurred abstract framed print on the left, a warm wall sconce and a small wall-mounted planter on the right. A cream mug and black microphone sit at the lower corners and may be partly cropped by the side edges. She looks straight into the lens with calm, friendly eye contact and a gentle smile. Preserve this close medium framing throughout."
+    }
+   }
+  }
+ }
+}
