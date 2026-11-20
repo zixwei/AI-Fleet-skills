@@ -1,0 +1,32 @@
+{
+  "name": "thumbnail-engine",
+  "version": "1.0.0",
+  "description": "YouTube thumbnail generator skill for Claude Code. Uses the Higgsfield MCP (Nano Banana Pro) to create professional, high-contrast thumbnails composited with your headshot.",
+  "bin": {
+    "thumbnail-engine": "bin/install.mjs"
+  },
+  "files": [
+    "bin/",
+    ".claude/skills/youtube-thumbnail/SKILL.md",
+    ".claude/skills/youtube-thumbnail/scripts/",
+    ".claude/skills/youtube-thumbnail/assets/headshots/README.md",
+    ".env.example",
+    "CLAUDE.md.example",
+    "requirements.txt"
+  ],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "youtube",
+    "thumbnail",
+    "higgsfield",
+    "ai",
+    "skill"
+  ],
+  "author": "Samin Yasar",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Samin12/thumbnail-engine"
+  }
+}
