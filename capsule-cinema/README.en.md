@@ -1,0 +1,424 @@
+<div align="center">
+
+# Capsule Cinema
+
+**Turn videos into templates. One recipe, unlimited videos.**
+
+Capsule Cinema is a short-video production system that runs inside coding agents. It packages format structure, storyboard rules, provider requirements, quality gates, and rework lessons into portable video recipes. For the next episode, change the topic and assets instead of rebuilding the workflow.
+
+<p>
+  <a href="./README.md">中文</a> ·
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-111827.svg" alt="License"></a>
+  <img src="https://img.shields.io/badge/Agent-Skills-16A34A.svg" alt="Agent Skills">
+  <img src="https://img.shields.io/badge/video-recipes-2563EB.svg" alt="Video recipes">
+  <img src="https://img.shields.io/badge/Opus_once-Others_replicate-F59E0B.svg" alt="Vibe once with Opus, replicate with other models">
+  <img src="https://img.shields.io/badge/targeted-rework-7C3AED.svg" alt="Targeted rework">
+  <img src="https://img.shields.io/badge/release-QA-0F172A.svg" alt="Release QA">
+</p>
+
+<p>
+  <strong>Reviewable storyboards · provider choice · scene-level rework · release QA · portable recipes</strong>
+</p>
+
+<p>
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="#stuck">Stuck?</a> ·
+  <a href="#cross-model-showcase">Cross-model showcase</a> ·
+  <a href="#why-video-recipes">Why recipes</a> ·
+  <a href="#demo">Demo</a> ·
+  <a href="#included-video-recipes">Included recipes</a> ·
+  <a href="#quality-gates-and-targeted-rework">Quality and rework</a> ·
+  <a href="#bring-your-own-generation-providers">Providers</a> ·
+  <a href="#community">Community</a>
+</p>
+
+<img src="docs/assets/readme-hero-en.svg" width="100%" alt="Capsule Cinema turns a proven short-video workflow into a reusable recipe">
+
+</div>
+
+Capsule Cinema is for creators and teams that publish recurring formats or product videos. Its starter recipes focus on Chinese short-video formats such as Douyin-style stories, product recommendations, and history explainers.
+
+This project is not a browser-based one-click generator, and it does not provide model compute. It runs in the user's agent and local workspace. Media generation uses APIs configured by the user. Public providers include Seedream, Seedance, Agnes image/short-video generation, MiniMax, Doubao Speech, and local FFmpeg.
+
+## Quick Start
+
+You do not need to memorize commands. Tell the agent what to install, make, repair, or save. **Your first video needs no API key.**
+
+| What you need | Notes |
+| --- | --- |
+| A coding agent that supports Skills | Codex, Claude Code, OpenClaw, Cursor, Trae, Hermes Agent, and similar |
+| Python 3.12 and FFmpeg | The agent checks for both during installation and installs what is missing |
+| A browser that can capture web pages | Only the project showcase uses it; see step 3 |
+| API keys for image, video, and voice providers | Not needed for the first video. Add them when you want AI-generated footage; see [Bring your own generation providers](#bring-your-own-generation-providers) |
+
+### 1. Ask the agent to install it
+
+Clients that support Agent Skills can install the standard entry directly:
+
+```bash
+npx skills add JuneYaooo/capsule-cinema --skill capsule-cinema
+```
+
+The standard skill locates or downloads the Capsule Cinema runtime on first use. To check Python and FFmpeg and prepare dependencies during installation, send this to Codex, Claude Code, OpenClaw, Cursor, Trae, Hermes Agent, or another agent that can read files, run commands, and discover Skills:
+
+```text
+Install Capsule Cinema for me:
+https://raw.githubusercontent.com/JuneYaooo/capsule-cinema/main/docs/install.md
+```
+
+Once installation finishes, **fully restart the agent** so it discovers the skill. The standard distribution entry is `skills/capsule-cinema/SKILL.md`; see the [installation guide](docs/install.md) for details.
+
+### 2. Ask "what can I make right now?"
+
+```text
+Run the Capsule Cinema first-run check and tell me what I can make now and what is missing.
+```
+
+The agent checks the runtime and your configured providers, then tells you which route is open. The check only looks at whether a variable is set. It never reads a key's value and calls no paid API.
+
+| What you have | Make this first | Cost |
+| --- | --- | --- |
+| Nothing configured | A project-introduction video (step 3) | 0 |
+| Nothing configured, and you only want to see the direction | A storyboard with no media (step 4) | 0 |
+| One `AGNES_API_KEY` (has a free tier) | One representative scene and a few seconds of sample footage | 0 within free-tier rate limits |
+| Image and video providers configured | A complete AI short video (step 4). Without Doubao or MiniMax voice, narration falls back to the local system voice | Billed by each provider |
+
+### 3. Start with a repository showcase that needs no key
+
+For a first run, we recommend using the included `repo_signal_grid` recipe to make a short introduction for this repository. It uses real browser screenshots and local layout rendering, so **you do not need to configure AI video, TTS, or image-generation providers**. It is a lightweight way to verify that installation, capture, rendering, and QA all work.
+
+Send this to your agent:
+
+```text
+Open and understand this project:
+https://github.com/JuneYaooo/capsule-cinema
+
+Use the included `repo_signal_grid` video recipe to make a project-introduction video.
+```
+
+This route needs an agent that can open web pages and take screenshots:
+
+- If the agent already has a browser tool, such as Playwright MCP or Chrome DevTools MCP, nothing else is needed.
+- Otherwise, ask the agent to run `npx playwright install chromium` once. It can then capture pages with Playwright.
+
+The first-run check in step 2 reports whether a usable browser was detected on this machine.
+
+Example result:
+
+<video width="420" controls src="https://github.com/user-attachments/assets/162037a1-5484-4554-bd38-976e3970c524"></video>
+
+### 4. Make an AI video: review the storyboard and one representative scene
+
+```text
+Use Capsule Cinema to make a warm 25-second vertical video
+about an orange cat running a late-night street-food stand.
+Show me the storyboard first. After I approve it, make only one representative scene.
+```
+
+After the storyboard and representative scene look right, ask the agent to complete the video. Each run gets its own `output/<run>/` directory. `release/` contains deliverables, `work/` contains intermediate media and the edit plan, and `qa/` contains checks and repair recommendations.
+
+Image, video, and speech generation require the matching providers. Browsing, validating, packing, and installing recipes do not call media-generation APIs. Never paste credentials into chat, recipes, prompts, scripts, or Git.
+
+### 5. Save a successful method as a recipe
+
+```text
+I like this video. Save it as a "Comforting Night Stand" recipe
+so I can keep making similar videos.
+```
+
+The recipe keeps reusable production methods, not episode facts, temporary assets, or credentials.
+
+You can also draft a recipe from a reference video. The agent first breaks down its hook, shot rhythm, copy structure, visuals, motion, and sound, then separates sample-specific content from reusable methods:
+
+```text
+Use this local reference video to draft a reusable video recipe.
+Tell me what methods you plan to keep before writing them into the recipe.
+```
+
+### 6. Reuse, update, or share it
+
+```text
+Use the "Comforting Night Stand" recipe for a rainy-night story
+about a dog selling oden.
+```
+
+```text
+The product close-up worked better at about two seconds.
+Check whether that lesson belongs in the commerce recipe.
+```
+
+```text
+Pack the "Comforting Night Stand" recipe so I can install it on another machine.
+```
+
+### Stuck?
+
+<details>
+<summary><strong>The agent does not seem to know Capsule Cinema after installation</strong></summary>
+
+Quit and restart the agent completely, then send the first-run check from step 2 again. If that still fails, ask the agent to follow the [installation guide](docs/install.md) again; it will report the step it stops at.
+
+</details>
+
+<details>
+<summary><strong>I have no API keys. What can I make?</strong></summary>
+
+A project-introduction video (`repo_signal_grid`), a storyboard with no media, and the four locally rendered [Vibe knowledge templates](docs/vibe-knowledge-templates.md). All of these use only Python and FFmpeg on your machine.
+
+</details>
+
+<details>
+<summary><strong>Where do credentials go?</strong></summary>
+
+Copy `lib/.env.example` from the install directory to `.env` at the root of the install directory and fill it in locally. For Claude Code the install directory is `~/.claude/skills/capsule-cinema/`; see the [installation guide](docs/install.md) for other agents. System environment variables and your agent's own secret settings also work. Never paste credentials into chat.
+
+</details>
+
+<details>
+<summary><strong>I do not want to spend money by accident</strong></summary>
+
+Add "do not generate images, video, or voice yet, and do not call any paid API" to your request, and the agent produces only a storyboard. After you approve it, try one representative scene before generating the rest.
+
+</details>
+
+<details>
+<summary><strong>Where is the finished video?</strong></summary>
+
+In `output/<run>/release/` under the install directory. `work/` in the same run holds intermediate media and `qa/` holds check results.
+
+</details>
+
+<details>
+<summary><strong>I want to check the status in a terminal myself</strong></summary>
+
+Run `python3.12 scripts/quickstart.py --lang en` in the install directory. It lists the runtime, configured providers, the routes open to you, and a suggested next step.
+
+</details>
+
+## Cross-model showcase
+
+A real production record that answers one question: **if you vibe a video with Claude Opus 5.5, save the making process as a recipe, then have another model replicate it — what can it achieve?**
+
+<table width="100%">
+  <tbody>
+    <tr>
+      <td width="50%" valign="top" align="center">
+        <video width="260" controls src="https://github.com/user-attachments/assets/a122c348-f60d-4bce-adff-4b812ea7a8a7"></video>
+        <br>
+        <strong>Original · Claude Opus 5.5</strong>
+        <br>
+        Made by vibe, until it felt right
+      </td>
+      <td width="50%" valign="top" align="center">
+        <video width="260" controls src="https://github.com/user-attachments/assets/487a641f-2c2a-4409-99e6-9cd0296c8dca"></video>
+        <br>
+        <strong>Replica · GLM 5.3 Flash</strong>
+        <br>
+        The model tested here; produced from the recipe alone
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Three steps:
+
+1. **Vibe the first video**: make a satisfying plush-figurine science explainer directly with Claude Opus 5.5.
+2. **Distill the recipe**: combine the making process with this repository's Agent Skill to produce the `plush_diorama_science` video recipe — shot structure, keyword-driven scenes and motion, per-line TTS with ASR checks, local subtitles and synthesized SFX, and quality gates. The recipe ships with this repository.
+3. **Replicate on another model**: swap in a cheaper model — GLM 5.3 Flash in this test — and produce a brand-new video from the recipe alone.
+
+A recipe stores the method, not one lucky take. Swap in a cheaper or stronger model, change the topic, and the same production line keeps running — that is what Capsule Cinema is built to hand you.
+
+## Why video recipes
+
+A one-off prompt can produce a video, but it rarely gives the next episode a dependable starting point. A video recipe stores the parts of a format that have already worked, so a new topic can reuse the same production method.
+
+| Common one-off workflow | Capsule Cinema |
+| --- | --- |
+| Explain the format again for every video | Reuse approved shot structure, pacing, and visual rules |
+| Commit to generation before the direction is clear | Review the storyboard, then test one representative scene |
+| Rebuild the full video when one scene fails | Rework one scene, voice track, subtitle pass, BGM track, or assembly |
+| Treat any playable MP4 as finished | Check aspect ratio, black frames, loudness, subtitles, safe areas, and deliverables |
+| Pick an improvised fallback when a tool is missing | Show available routes and pause when a change affects the promised result |
+| Leave successful decisions in chat history | Write stable lessons back to the recipe after validation |
+| Keep the workflow on one machine | Pack the recipe and install it in another machine or team environment |
+
+<img src="docs/assets/readme-workflow-en.svg" width="100%" alt="Capsule Cinema production loop from brief to validated learning">
+
+A video recipe stores the reusable production method and can be packed for another machine. A recipe typically contains:
+
+```text
+video recipe
+= inputs and usage boundaries
++ storyboard, visual, and audio recipes
++ tool capability requirements
++ quality gates and release checks
++ validated rework lessons
+```
+
+## Demo
+
+These samples come from starter recipes included in the public repository. Keep the proven structure and quality rules, then replace the topic, assets, product, or episode copy.
+
+<table>
+  <tbody>
+    <tr>
+      <td width="62%" valign="top">
+        <video width="100%" controls src="https://github.com/user-attachments/assets/d81e88b3-a567-4835-9784-c2a65f4fe977"></video>
+      </td>
+      <td width="38%" valign="top">
+        <strong>Life-simulation story</strong>
+        <br>
+        Recipe: <code>life_sim</code>
+        <br><br>
+        Built for relatable work-and-life stories, anime narration, and recurring story formats.
+        <br><br>
+        The recipe stores second-person narration, hook structure, emotional progression, character consistency, shot pacing, and TTS rules.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table width="100%">
+  <tbody>
+    <tr>
+      <td width="50%" valign="top" align="center">
+        <video width="260" controls src="https://github.com/user-attachments/assets/c7722195-0c14-4478-aeb8-b5e950518669"></video>
+        <br>
+        <strong>Commerce product showcase</strong>
+        <br>
+        Recipe: <code>ecommerce_product_showcase</code>
+        <br>
+        Product identity, selling-point order, scene demonstration, narration pacing, and compliance rules.
+      </td>
+      <td width="50%" valign="top" align="center">
+        <video width="260" controls src="https://github.com/user-attachments/assets/5fff44fe-97e5-41e4-a966-2c8565926d89"></video>
+        <br>
+        <strong>Art image motion</strong>
+        <br>
+        Recipe: <code>art_motion</code>
+        <br>
+        Reference frames, style constraints, motion direction, and image-to-video checks.
+      </td>
+    </tr>
+    <tr>
+      <td width="50%" valign="top" align="center">
+        <video width="260" controls src="https://github.com/user-attachments/assets/b5c672be-cacb-4877-a688-e6d7baa1a3b5"></video>
+        <br>
+        <strong>Chinese history explainer</strong>
+        <br>
+        Recipe: <code>guofeng_history</code>
+        <br>
+        Guofeng visuals, historical narration, voiceover pacing, and content boundaries.
+      </td>
+      <td width="50%" valign="top" align="center">
+        <video width="260" controls src="https://github.com/user-attachments/assets/59f4c71c-9634-4b9f-8b48-e47f7a7c1d5f"></video>
+        <br>
+        <strong>Wool-felt ASMR craft</strong>
+        <br>
+        Recipe: <code>felt_asmr</code>
+        <br>
+        Material close-ups, making steps, calm pacing, and ASMR sound rules.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+The public samples mainly use Volcengine Ark Seedream and Seedance, with MiniMax or Doubao Speech for narration. RunningHub action-transfer and lip-sync workflows remain available as code examples. Provider access, model permissions, and billing come from the user's own accounts.
+
+## Included video recipes
+
+The repository includes the following recipes. You can inspect their contracts and customize them before running:
+
+| Recipe | Best for | What it keeps stable |
+| --- | --- | --- |
+| `plush_diorama_science` | Invisible-process science: how something is made or transforms | Plush-figurine diorama style, keyword-driven shots and motion, per-line TTS with ASR subtitle checks, local Blender rendering, and quality gates |
+| `life_sim` | Second-person life simulations and anime story narration | Hooks, emotional progression, character rules, and fast pacing |
+| `ecommerce_product_showcase` | Product demonstrations and commerce shorts | Product identity, selling-point structure, platform tone, and compliance |
+| `art_motion` | Illustration, poster, and reference-frame motion | Style, motion direction, transitions, and reference constraints |
+| `felt_asmr` | Wool-felt crafts and calming ASMR | Material detail, making steps, close-ups, sound, and pacing |
+| `guofeng_history` | Chinese history and culture explainers | Guofeng visuals, character narrative, voiceover, and content boundaries |
+| `repo_signal_grid` | GitHub repositories, tools, and Agent Skill showcases | Real browser captures, a 6:7 warm-white orange grid, five evidence cards, and low-cost local rendering |
+| `dual_role_real_screen_recording` | Dual-role project explainers with GitHub and WorkBuddy proof | Real GitHub scroll recording, native OBS WorkBuddy window recording, provenance hashes, and privacy QA |
+| `mv_scene_cut` | Song MVs: one performer throughout, with the cutting carrying the rhythm | Measured reference-film cut grammar, frame-locked timeline, interleaved lip-sync and story scenes, two-cut shot sizes, per-source luminance normalisation, karaoke subtitles and a full-film transcript check |
+
+## Quality gates and targeted rework
+
+Capsule Cinema tracks playable output and release-ready output separately. After media generation, it builds an edit plan and checks local files, timeline structure, and release requirements.
+
+| Area | Example checks |
+| --- | --- |
+| Video file | Aspect ratio, duration, codec, black frames, frozen frames, and audio tracks |
+| Audio | Loudness, clipping, silence, and TTS duration against the scene |
+| Frames and subtitles | Subtitle layout, safe areas, readability, character identity, and style consistency |
+| Recipe contract | Required scenes, deliverables, forbidden fallbacks, and release gates |
+| Delivery package | Final video, cover, and platform copy |
+
+When a check fails, rework can target one scene, voice track, subtitle pass, BGM track, or assembly:
+
+```text
+The character is distorted in scene 3.
+Regenerate only that scene and keep the other scenes and audio unchanged.
+```
+
+The repaired video goes through QA again. Blocking issues keep it out of the delivery state.
+
+## What a video recipe stores
+
+A recipe stores its use cases, input requirements, storyboard structure, visual style, audio strategy, capability needs, quality rules, and validated lessons. It does not store a complete previous video or copy facts, scripts, and temporary assets into the next episode.
+
+Recipes come from three sources:
+
+| Source | Use |
+| --- | --- |
+| Included recipes | Start from examples shipped in the repository |
+| Personal recipes | Distill successful work into account, brand, or project methods |
+| Shareable recipes | Pack a recipe for another machine, teammate, or community user |
+
+Credentials, client data, and one-off run artifacts stay out of shareable recipes.
+
+## Bring your own generation providers
+
+Video recipes declare capability requirements without binding themselves to one vendor. At runtime, Capsule Cinema matches those requirements against image, video, TTS, music, digital-human, action-transfer, editing, and QA tools that are configured and approved on the current machine.
+
+| Capability | Public example |
+| --- | --- |
+| Image generation | Volcengine Ark Seedream and Agnes Image 2.1 Flash |
+| Video generation | Volcengine Ark Seedance at the default 720p, opt-in MiniMax H3 2K, and Agnes Video v2.0 short text-to-video |
+| Speech synthesis | Doubao Speech and MiniMax |
+| Action transfer and lip sync | RunningHub |
+| Editing, subtitles, and QA | Local FFmpeg and quality checks |
+
+### Recommended first run: Agnes
+
+If you only want to prove the image and short-video pipeline first, Agnes is a practical starting point. Register through the [Agnes API Platform](https://platform.agnes-ai.com/), create your own API key in the dashboard, and configure it as `AGNES_API_KEY`. Use it for a representative image and a few-second text-to-video motion sample to verify prompting, aspect ratio, download, and QA. It is not a complete image-to-video or long-video engine.
+
+<details>
+<summary>Free-tier quota and rate-limit details (as of 2026-07-27)</summary>
+
+The [official Agnes FAQ](https://wiki.agnes-ai.com/en/docs/faqs.md) says its core text, image, video, and multimodal models are free to use “indefinitely” and “without a time limit”; no free-tier end date is currently published. This does not mean unlimited requests or unlimited quota. The [current limits reference](https://wiki.agnes-ai.com/en/docs/tokenplan.md) lists effective free/default limits of roughly 20 RPM for 1K images, 10 RPM for 2K, 1 RPM for 3K/4K, and 1 RPM for video. Agnes does not publicly specify the free user's daily video-seconds quota; the documented 500 seconds per day applies only to paid Token Plan users. The free tier has no production SLA, and quotas, rate limits, model rules, and output specifications may change.
+
+</details>
+
+The repository never embeds or shares an Agnes API key. Returned dimensions may differ from the request. The public Agnes video tool declares only the verified short text-to-video route and removes provider-native audio by default.
+
+Complete-video runs remain on `seedance2.0` at 720p by default. An explicit “MiniMax H3,” “Hailuo-03,” “2K,” or high-resolution request selects `minimax-h3`; callers may also pass `--video_engine minimax-h3` to `run_video.py`. MiniMax H3 V2 currently accepts only 2K, so the runtime does not invent a low-resolution H3 option or silently downgrade a failed high-resolution run to 720p.
+
+If a tool is unavailable, the runtime explains the available alternatives. It pauses for confirmation when a replacement changes the promised result instead of silently lowering quality.
+
+## Community
+
+| Channel | Best for |
+| --- | --- |
+| [GitHub Issues](https://github.com/JuneYaooo/capsule-cinema/issues) | Recipe ideas, run problems, sample videos, and improvement suggestions |
+| [LINUX DO](https://linux.do/) | Chinese developer community discussions |
+| WeChat group | Production experience and sharing your own video recipes |
+
+<p align="center">
+  <img src="docs/assets/wechat-group.jpg" alt="QR code for the capsule-cinema WeChat group" width="320">
+  <br>
+  <sub>Scan with WeChat to join the capsule-cinema community group</sub>
+</p>
+
+## License
+
+This project is licensed under the Apache License 2.0. Read the full [LICENSE](./LICENSE) before commercial use.

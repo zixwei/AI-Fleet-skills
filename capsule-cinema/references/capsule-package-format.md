@@ -1,0 +1,446 @@
+# Video OKF Capsule Package Format
+
+Capsule packages are the current checked-in recipe format for Capsule Cinema. They use the `video.okf.capsule.v1` profile: an OKF-inspired knowledge bundle with skills-like progressive disclosure, plus video-specific runtime contracts, assets, QA gates, and learning surfaces.
+
+Active packages live at:
+
+```text
+capsules/<name>.capsule/
+```
+
+Shareable active packages use the `.video-capsule.zip` extension. Raw run evidence, feedback, QA reports, prompt snapshots, and final artifact paths must not be copied into active package files.
+
+## Design Model
+
+This profile combines three ideas:
+
+- **OKF-style knowledge**: Markdown surfaces are concept documents with YAML frontmatter. The root `index.md` is the bundle map for human and agent traversal.
+- **Skills-style loading**: `capsule.yaml` and `CARD.md` stay small. Detailed recipes, assets, scripts, QA, examples, and learning are read only when the stage needs them.
+- **Video runtime contracts**: deterministic execution details stay in YAML contracts instead of prose. This keeps tool routing, input requirements, assets, QA, and release gates machine-readable.
+
+Do not multiply directories by video type. Generic AI video, action imitation, digital human, AI music MV, source-media editing, and generated/source hybrid video are represented through `primary_workflow`, `capabilities`, `contracts/runtime.yaml`, asset roles, and QA gates.
+
+## Layout
+
+```text
+capsules/<name>.capsule/
+  index.md
+  capsule.yaml
+  CARD.md
+  contracts/
+    runtime.yaml
+    input_schema.yaml
+    content_scope.yaml
+  recipes/
+    structure.md
+    visual.md
+    audio.md
+    copy.md
+    motion.md
+  quality/
+    rules.yaml
+    release_gates.yaml
+  learning/
+    promoted_lessons.yaml
+  examples/
+    illustrative.yaml
+  assets/
+    index.yaml
+  scripts/
+    ... only for execution_mode=local_script
+```
+
+Asset `path` values in `assets/index.yaml` are relative to the package's `assets/` directory. For example, `path: style.png` points to `capsules/<name>.capsule/assets/style.png`. The validator rejects paths that escape `assets/` or point at missing files.
+
+## Manifest
+
+`capsule.yaml` is the machine manifest. It must declare the package schema, the video profile, routing metadata, workflow capabilities, stage read order, and entrypoints:
+
+```yaml
+schema_version: capsule.package.v1
+profile: video.okf.capsule.v1
+name: example_series
+display_name: Douyin Life-Sim Anime Voiceover
+status: active
+execution_mode: local_script
+category: douyin_story_voiceover
+primary_workflow: generic_story_voiceover
+capabilities:
+  - image_generation
+  - micro_cut_editing
+  - tts
+  - bgm
+  - sfx
+  - local_script
+tags:
+  - douyin
+  - life-sim
+  - anime
+  - voiceover
+read_order:
+  routing:
+    - index.md
+    - CARD.md
+    - contracts/input_schema.yaml
+    - contracts/content_scope.yaml
+  planning:
+    - contracts/input_schema.yaml
+    - contracts/content_scope.yaml
+    - recipes/structure.md
+    - recipes/copy.md
+    - recipes/visual.md
+    - recipes/audio.md
+  generation:
+    - contracts/runtime.yaml
+    - recipes/motion.md
+    - assets/index.yaml
+  qa:
+    - quality/rules.yaml
+    - quality/release_gates.yaml
+  learning:
+    - learning/promoted_lessons.yaml
+entrypoints:
+  preset: general_video
+  local_script: scripts/example_executor.py
+```
+
+`capabilities` are intentionally extensible. They describe required video abilities; runtime preflight decides whether the current tool registry can satisfy them. If a capsule needs `action_transfer`, `lip_sync`, `beat_sync`, `source_media_editing`, or `hybrid_compositing`, declare the capability instead of creating a new directory family.
+
+`tags` are required routing and substitution keys for the whole capsule. They are not merely display labels: local selection can use them to find a nearby replacement capsule when the exact workflow or tool channel is unavailable. Keep tags short, stable, and reusable across capsules, such as `digital-human`, `lip-sync`, `source-media-editing`, `wechat-channels`, `ai-video`, or `bgm`. `when_to_use` may still contain human-readable usage hints, but fallback matching should prefer `tags`, `capabilities`, and `primary_workflow`.
+
+## Markdown Concepts
+
+The root `index.md`, `CARD.md`, and every `recipes/*.md` file are OKF-style Markdown concepts with YAML frontmatter.
+
+Root `index.md` is the progressive bundle map:
+
+```markdown
+---
+okf_version: "0.1"
+type: Video Capsule Bundle Index
+title: Douyin Life-Sim Anime Voiceover
+description: Short routing summary.
+profile: video.okf.capsule.v1
+primary_workflow: generic_story_voiceover
+tags: [douyin, life-sim, voiceover]
+---
+
+# Entry
+
+* [Capsule Card](CARD.md) - Routing summary, purpose, and usage boundary.
+```
+
+`CARD.md` is the small routing surface:
+
+```markdown
+---
+type: Video Capsule Card
+title: Douyin Life-Sim Anime Voiceover
+description: Short routing summary.
+stage: routing
+profile: video.okf.capsule.v1
+primary_workflow: generic_story_voiceover
+tags: [douyin, life-sim, voiceover]
+---
+```
+
+Each recipe declares its domain and stage:
+
+```markdown
+---
+type: Video Recipe
+title: Visual Recipe
+description: Visual style, references, characters, scenes, composition, and continuity.
+stage: planning
+domain: visual
+profile: video.okf.capsule.v1
+tags: [visual]
+---
+```
+
+The canonical recipe domains are:
+
+```text
+structure -> planning   -> story structure, pacing, beats, and scene architecture
+copy      -> planning   -> voiceover, subtitles, titles, cover copy, lyrics, and CTA rules
+visual    -> planning   -> visual style, references, characters, scenes, and continuity
+audio     -> planning   -> TTS, original audio, BGM, SFX, mix, timing, and sync
+motion    -> generation -> camera motion, action, transitions, dynamic generation, and edit rhythm
+```
+
+`recipes/copy.md` is a first-class scriptwriting surface, not only a place to store finished titles or subtitles. A capsule should be able to receive a raw `topic` and plan the copy before visual generation. The default scaffold therefore includes a `copywriting_structure_contract` in `contracts/runtime.yaml.defaults` and matching sections in `recipes/copy.md` and `recipes/structure.md`.
+
+The copywriting contract must cover:
+
+- topic-to-angle transformation: raw topic -> audience pressure -> common misread -> counterintuitive thesis -> concrete scene -> viral angle candidates.
+- first-screen and first-line planning: the actual 0-3 seconds must contain concrete pain, identity pressure, a verdict, a stake, or a completion gap.
+- planning outputs: raw topic, audience pressure, common misread, recommended angle, first 3 seconds, first 20 seconds, script outline, cover text, title, and risk notes.
+- packaging alignment: title, cover, first screen, and first spoken line should come from the same highest-scoring angle.
+
+Do not add a separate side-channel such as `topic_to_viral.md`; that creates stale competing instructions. Topic transformation and script structure belong in `recipes/copy.md`, `recipes/structure.md`, `contracts/runtime.yaml.defaults.copywriting_structure_contract`, and copy-related QA gates.
+
+## Content Scope Contract
+
+Every active package must contain `contracts/content_scope.yaml`. It separates stable column identity from content that changes for each episode:
+
+```yaml
+schema_version: capsule.content_scope.v1
+series_fixed:
+  - recurring_character
+  - default_bgm
+  - ending_cta
+  - visual_skin
+  - narrative_structure
+episode_variable:
+  - topic
+  - subject_facts
+  - evidence_claims
+  - episode_copy
+forbidden_reusable_literals:
+  - source-project-name
+  - source-specific-number
+policies:
+  allow_series_fixed_defaults: true
+  forbid_episode_specific_defaults: true
+  active_recipe_examples_must_use_placeholders: true
+  current_run_input_may_reuse_literal: true
+```
+
+`series_fixed` is intentionally reusable and may include recurring characters, BGM, CTA, visual skin, palette, layout, component families, column voice, pacing, and QA methods. The contract does not require removing all fixed content.
+
+`episode_variable` names values that must come from the current topic, user input, or current evidence: people, projects, accounts, course names, claims, metrics, prices, titles, narration, and diagram-node copy. Active recipes and runtime defaults describe how to use those inputs; they do not contain the previous episode's values.
+
+`forbidden_reusable_literals` is package-local, not a global blacklist. It records known source-episode literals that must not reappear in reusable metadata, contracts, recipes, QA rules, scripts, or promoted lessons. The same literal remains legal in current-run input and evidence. If it genuinely becomes a recurring series asset, reclassify it explicitly instead of bypassing the scope failure.
+
+Illustrative examples may contain concrete sample values only under `examples/`, which must not be part of active routing, planning, generation, QA, or learning read order. Examples embedded in active recipes must use placeholders. Package creation scaffolds this contract, video-to-capsule analysis must return it, updates check it before writing, and package validation scans reusable text surfaces for declared literals.
+
+## Stage Reading
+
+The loader reads only the files named for the requested stage:
+
+```text
+routing    -> capsule.yaml + index.md + CARD.md + contracts/input_schema.yaml + contracts/content_scope.yaml
+planning   -> contracts/input_schema.yaml + contracts/content_scope.yaml + recipes/structure.md + recipes/copy.md + recipes/visual.md + recipes/audio.md
+generation -> contracts/runtime.yaml + recipes/motion.md + assets/index.yaml
+qa         -> quality/rules.yaml + quality/release_gates.yaml
+learning   -> learning/promoted_lessons.yaml
+```
+
+Every active `recipes/*.md` file must be listed in `capsule.yaml.read_order`. Hidden recipe files are rejected because they create stale, contradictory surfaces. Do not add `legacy_notes.md`, `repair_playbook.md`, `subtitle.md`, or other side-channel recipe files. Subtitle rules belong in `recipes/copy.md` and `quality/rules.yaml`; repair lessons belong in `learning/promoted_lessons.yaml` until promoted into a recipe or QA rule — and promotion must remove the lesson from `promoted_lessons.yaml` in the same update (see Rule Ownership and Drift Control).
+
+## Runtime Video Elements
+
+`contracts/runtime.yaml` may declare fixed video elements without adding a new directory or a broad rule DSL:
+
+```yaml
+roles: {}
+output_contract:
+  subtitle: none
+  bgm: external
+video_elements:
+  fixed:
+    body_subtitles_default: false
+  defaults:
+    aspect_ratio: "16:9"
+    target_duration: 60
+  user_overridable:
+    aspect_ratio_options: ["16:9", "9:16", "3:4"]
+  forbidden:
+    - mid_sentence_visual_cut
+    - continuous_body_shake
+defaults:
+  copywriting_structure_contract: {}
+```
+
+Use `video_elements.fixed` for non-negotiable production facts, `video_elements.defaults` for runtime starting values, `video_elements.user_overridable` for explicit option sets, and `video_elements.forbidden` for stable forbidden slugs. Do not duplicate the same key between legacy `defaults` and `video_elements`; the package validator rejects that because it creates two sources of truth. Keep craft explanation in recipes and promote only high-risk blockers to structured release gates.
+
+## Video Coverage
+
+Video type differences are modeled as capabilities and contracts:
+
+| Video family | Typical capabilities | Main recipe/contract surfaces |
+| --- | --- | --- |
+| Generic AI video | `image_to_video`, `tts`, `subtitles`, `bgm` | `structure`, `visual`, `motion`, `audio`, runtime roles |
+| Action imitation | `source_video`, `action_transfer`, `pose_reference`, `identity_preservation` | `motion`, `visual`, assets, QA rules |
+| Digital human | `avatar_reference`, `tts`, `lip_sync`, `talking_head`, `voice_consistency` | `copy`, `audio`, `visual`, `motion`, runtime roles |
+| AI music MV | `source_music`, `beat_sync`, `lyric_sync`, `montage_editing`, `audio_mastering` | `audio`, `structure`, `motion`, `visual` |
+| Source-media editing | `source_media_editing`, `transcription`, `edit_plan`, `risk_mute`, `subtitle` | `structure`, `copy`, `motion`, `audio`, assets |
+| Hybrid generated/source video | `source_media`, `generated_media`, `style_matching`, `compositing`, `provenance_tracking` | assets, runtime roles, `visual`, `motion`, QA rules |
+
+The format can describe a capability even when the current runtime cannot execute it. The runtime must preflight and block unsupported capabilities instead of silently downgrading to a generic path.
+
+### Reference remakes and VIDEO.md
+
+A capsule that remakes a reference video declares an optional `reference_package` input in `contracts/input_schema.yaml`. The input is a [VIDEO.md](https://github.com/videomd/videomd) package of the reference, such as a reviewed `rea-video decompose` output directory. The reference's skeleton then comes from the package instead of hand-copied breakdown notes:
+
+- `scripts/remake_reference.py sheet <pkg>` builds the reference sheet. It has one record per shot: time, duration, what is seen, camera id, overlays, inferred method and probability, remake route, flags, and frame paths. It also has the cut points, captions from any `.srt` the package maps, and a review list of shots to confirm before paid generation.
+- `scripts/remake_reference.py fragments <pkg>` prints params pieces in the shapes remake scripts already take: a `shots` table, `cuts`, `keyframes`, per-shot `targets` durations, and `captions`. The shots table's text describes the reference. Rewrite it for the new subject before generating.
+- For `local_script` capsules, `scripts/run_capsule.py` reads `reference_package` from params. It writes `inputs/reference_sheet.json`, passes its path as `reference_sheet`, and fills `source_video` when the package holds the video.
+- `scripts/remake_reference.py compare <pkg> <remake.mp4|remake pkg>` checks structure fidelity after rendering: total duration, shot count, cut alignment, per-shot duration, camera moves, and overlay presence. It writes `qa/remake_compare.json` and `.md`. A video is first broken down locally with `rea-video decompose`. The check covers structure only, so identity, hands, props, and look still need a frame-by-frame review.
+
+Keep the package itself out of the capsule. It describes one episode's reference, so it belongs to the run and not to reusable capsule surfaces.
+
+## Surface Boundaries
+
+- `CARD.md`: routing, purpose, when-to-use, when-not-to-use, and stage reading only.
+- `recipes/*.md`: reusable craft rules for the recipe domain. No local paths, run history, raw feedback, migration notes, or final artifact paths.
+- `contracts/*.yaml`: machine-readable input and runtime contracts. Keep long craft explanation in recipes.
+- `assets/index.yaml`: reusable packaged assets and references. Asset files are not loaded into context unless needed.
+- `quality/*.yaml`: machine-readable failure rules and release gates.
+- `learning/promoted_lessons.yaml`: generalized lessons only. Raw run evidence remains outside the active package.
+- `examples/illustrative.yaml`: examples for orientation only; never copy examples as final content.
+
+## Commands
+
+Create a new active package:
+
+```bash
+python3.12 scripts/capsule_package_create.py \
+  --name demo_capsule \
+  --display-name "Demo Capsule" \
+  --summary "Reusable demo AI video workflow." \
+  --category demo \
+  --primary-workflow generic_ai_video \
+  --capability image_to_video \
+  --capability tts \
+  --capability bgm \
+  --tag demo \
+  --tag ai-video
+```
+
+This writes a complete `video.okf.capsule.v1` scaffold and validates it before returning. Use this command instead of hand-creating package directories.
+
+Create a verified local-script capsule only when deterministic mechanics have been proven reusable:
+
+```bash
+python3.12 scripts/capsule_package_create.py \
+  --name verified_renderer \
+  --display-name "Verified Renderer" \
+  --summary "Parameterized deterministic card renderer." \
+  --category code_rendered_video \
+  --primary-workflow specialized_renderer \
+  --capability rendering \
+  --tag card-renderer \
+  --local-script /path/to/reviewed/script_bundle \
+  --local-script-entry run.py \
+  --script-evidence /path/to/local_script_evidence.json
+```
+
+`--local-script` accepts either one Python entrypoint or a directory bundle. Directory bundles require `--local-script-entry`. The evidence gate requires at least one successful run, cross-topic verification, a non-empty deterministic-step list, and a non-empty parameterized-input list. The creator adds the `local_script` capability automatically.
+
+Safely update an active package:
+
+```bash
+python3.12 scripts/capsule_package_update.py capsules/demo_capsule.capsule \
+  --add-capability lip_sync \
+  --add-tag digital-human \
+  --lesson-id lip_sync_audio_is_timing_authority \
+  --lesson-scope audio \
+  --lesson-rule "Lip-sync generation must use final mixed speech audio as the timing authority." \
+  --applies-when lip_sync \
+  --applies-when digital_human \
+  --promote-to recipes/audio.md \
+  --promote-to quality/rules.yaml
+```
+
+The update command rewrites only controlled surfaces (`capsule.yaml`, `index.md`, `CARD.md`, and `learning/promoted_lessons.yaml`) and validates the package after writing. If validation fails, it restores the previous package state. Use `--dry-run` to verify a proposed update without keeping the changes.
+
+It can also promote a proven preset workflow to a local-script runner with `--promote-local-script`, `--script-evidence`, and optional `--local-script-entry`. Promotion or runner replacement always produces a semantic conflict that must be explicitly resolved before files are copied or execution mode changes.
+
+Before writing, the update command runs a deterministic conflict review against existing capsule surfaces. If a proposed metadata, capability, tag, workflow, or promoted-lesson change contradicts current capsule boundaries, the command stops before writing and reports stable conflict IDs. Review those conflict points with the user, decide how each conflict should be resolved, then pass a confirmation JSON with `--conflict-resolution`:
+
+```json
+{
+  "resolved_conflicts": [
+    {
+      "id": "capsule_update_conflict_1",
+      "resolution": "User confirmed this update should override the previous boundary."
+    }
+  ]
+}
+```
+
+Use `--conflict-report-json` to print blocked conflict details as JSON for agent review. A structural validation pass is not proof that the update has no semantic conflict.
+
+Validate one package:
+
+```bash
+python3.12 scripts/capsule_package_validate.py capsules/ecommerce_product_showcase.capsule
+```
+
+Pack an active capsule for sharing:
+
+```bash
+python3.12 scripts/capsule_package_pack.py \
+  capsules/ecommerce_product_showcase.capsule \
+  --out dist/capsules
+```
+
+This validates the capsule, refuses runtime/cache files such as `output/`, hidden transient files, local paths, secrets, remote URLs, and stale evidence tokens, then writes:
+
+```text
+dist/capsules/ecommerce_product_showcase.video-capsule.zip
+```
+
+Install a shared active capsule:
+
+```bash
+python3.12 scripts/capsule_package_install.py \
+  dist/capsules/ecommerce_product_showcase.video-capsule.zip \
+  --out capsules
+```
+
+Install verifies `manifest.json`, checks every file's SHA-256 and size, rejects unsafe archive paths, validates the unpacked capsule, and refuses to overwrite an existing `capsules/<name>.capsule/` unless `--force` is passed.
+
+Share package layout:
+
+```text
+<name>.video-capsule.zip
+  manifest.json
+  <name>.capsule/
+    index.md
+    capsule.yaml
+    CARD.md
+    contracts/
+    recipes/
+    quality/
+    learning/
+    examples/
+    assets/
+    scripts/
+```
+
+Share manifest fields:
+
+| Field | Meaning |
+| --- | --- |
+| `package_format` | Must be `video.okf.capsule.share.v1`. |
+| `profile` | Must be `video.okf.capsule.v1`. |
+| `name` | Capsule name. |
+| `primary_workflow` | Main workflow key for routing. |
+| `capabilities` | Machine-readable required video abilities. |
+| `tags` | Whole-capsule routing and fallback substitution tags. |
+| `capsule_dir` | Root directory inside the zip, usually `<name>.capsule`. |
+| `files` | `{path, sha256, size}` for every packaged file. |
+
+Validate a capsule package before publishing:
+
+```bash
+python3.12 scripts/capsule_package_validate.py capsules/<name>.capsule --warnings-ok
+```
+
+## Learning Boundary
+
+Raw evidence is not recipe. Evidence can produce lesson candidates, and promoted lessons may be written into `learning/promoted_lessons.yaml`, `recipes/`, or `quality/rules.yaml` only after being generalized and stripped of run-specific material.
+
+Promotion is a move, not a copy: once a lesson's content exists in a recipe or a QA rule, delete the lesson from `promoted_lessons.yaml` in the same update. Keeping both surfaces is how capsules accumulate contradictory copies of the same rule.
+
+## Rule Ownership and Drift Control
+
+Capsule updates fail by accretion: each iteration adds sentences, nothing is removed, and the same rule ends up restated in five surfaces with drifting numbers. Three rules prevent this:
+
+1. **A rule has exactly one home.** Craft reasoning (how to write, draw, animate) lives in `recipes/*.md`. Enforceable thresholds, enum values, and required fields live in `contracts/input_schema.yaml` and `quality/rules.yaml` only. When a rule changes, update its home and every structured surface that encodes it in the same edit — a prose change without the contract change is a contradiction, not an improvement.
+2. **Capability vocabulary has one invariant.** `capsule.yaml.production_capabilities` must be a subset of `capsule.yaml.capabilities`. Do not invent near-synonym tokens across the two lists (for example `tts` vs `tts_voiceover`) without adding both to `capabilities`.
+3. **Descriptions describe the present, not the history.** `capsule.yaml.summary`, `CARD.md` frontmatter `description`, and `index.md` descriptions state what the capsule is now. Rewrite them in place; never append version clauses. Changelog duties belong to git history. Keep `summary` under roughly 160 characters.
+
+`capsule_package_validate.py` (and therefore every create, update, and pack command) runs this lint automatically and fails on lint errors. Warnings are drift candidates for human review, not automatic failures.
