@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Player</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --text2:#cbd5e1; --muted:#94a3b8; --a1:#fb923c; --a2:#2dd4bf; --line:#334155; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--text); font:14px/1.4 system-ui, sans-serif; }
+  body.still { background:#000; overflow:hidden; }
+  #wrap { max-width: calc((100vh - 120px) * 16 / 9); margin: 0 auto; padding: 8px 16px; }
+  body.still #wrap { max-width:none; padding:0; }
+  canvas { display:block; width:100%; aspect-ratio:16/9; background:#000; border-radius:6px; }
+  body.still canvas { width:100vw; height:100vh; border-radius:0; }
+  #cap { min-height:1.6em; text-align:center; color:var(--text); font-size:18px; margin:6px 0; }
+  #bar { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:8px 12px; }
+  body.still #bar, body.still #cap, body.still #msg { display:none; }
+  button, .btn { background:#0f172a; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:5px 10px; font:inherit; cursor:pointer; }
+  button:hover, .btn:hover { border-color:var(--a2); }
+  #play { min-width:64px; border-color:var(--a1); }
+  #scrub { flex:1 1 200px; accent-color:var(--a1); }
+  #time { font-variant-numeric:tabular-nums; color:var(--text2); min-width:110px; }
+  label { color:var(--text2); display:inline-flex; gap:4px; align-items:center; }
+  input[type=checkbox] { accent-color:var(--a2); }
+  #msg { color:var(--muted); margin-top:6px; font-size:13px; }
+  #srtBox { display:none; margin-top:8px; }
+  #srtBox textarea { width:100%; height:120px; background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:6px; font:12px monospace; }
+  .err { color:#f87171 !important; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c" width="1920" height="1080"></canvas>
+  <div id="cap"></div>
+  <div id="bar">
+    <button id="play">Play</button>
+    <input id="scrub" type="range" min="0" max="1000" value="0">
+    <span id="time">0.00 / 0.00</span>
+    <label><input id="snd" type="checkbox" checked> Sound</label>
+    <label><input id="loop" type="checkbox" checked> Loop</label>
+    <label class="btn">Load voiceover<input id="voFile" type="file" accept="audio/*" hidden></label>
+    <button id="voClear" hidden>Remove voiceover</button>
+    <button id="srtBtn">Load SRT</button>
+    <label><input id="caps" type="checkbox"> Captions</label>
+    <button id="rec" title="Real-time capture: quality depends on this machine">Record WebM</button>
+    <button id="wav">Save WAV</button>
+  </div>
+  <div id="srtBox">
+    <textarea id="srtText" placeholder="Paste SRT here, or choose a file"></textarea>
+    <button id="srtApply">Apply SRT</button> <label class="btn">Choose .srt file<input id="srtFile" type="file" accept=".srt,.txt,.vtt" hidden></label> <button id="srtClear">Clear cues</button>
+  </div>
+  <div id="msg"></div>
+</div>
+<script src="kit/stage.js"></script>
+<script src="kit/sound.js"></script>
+<script src="kit/prompt.js"></script>
+<script src="styles/manifest.js"></script>
+<script type="module">
+const q = new URLSearchParams(location.search);
+const $ = id => document.getElementById(id);
+const msg = (t, err) => { $('msg').textContent = t; $('msg').classList.toggle('err', !!err); };
+const still = q.get('still') === '1';
+if (still) document.body.classList.add('still');
+if (location.protocol === 'file:') msg('Serve this folder over http: python -m http.server 8000 --directory atlas', true);
+
+const load = src => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('Cannot load ' + src)); document.head.append(s); });
+window.THREE = await import(`https://cdn.jsdelivr.net/npm/three@${K.THREE_VERSION}/build/three.module.js`);
+
+const id = q.get('style') || STYLE_LIST[0].id;
+const entry = STYLE_LIST.find(s => s.id === id);
+if (!entry) throw msg('Unknown style: ' + id, true);
+try { await load('styles/' + entry.file); } catch (e) { msg(`Style "${entry.name}" is not built yet.`, true); throw e; }
+const style = STYLES[id];
+// Art style: ?art=<id> draws the scene with atlas/art/<id>.js (the scene must have post: null).
+let art = null;
+if (q.get('art')) {
+  try { await load('art/manifest.js'); const ae = ART_LIST.find(a => a.id === q.get('art')); if (!ae) throw new Error('Unknown art style: ' + q.get('art')); await load('art/' + ae.id + '.js'); art = ARTS[ae.id]; }
+  catch (e) { throw msg(e.message, true); }
+}
+document.title = still ? 'loading' : `${String(entry.n).padStart(2, '0')} ${style.name}${art ? ' + ' + art.name : ''} — Player`;
+const samples = +(q.get('samples') || (still ? style.samples : 1));
+let S;
+try { S = await K.run($('c'), style, { samples, art }); } catch (e) { throw msg(e.message, true); }
+window.S = S;
+window.seek = t => S.seek(t);
+Object.defineProperty(window, 'DURATION', { get: () => duration() });
+
+if (still) { S.seek(+(q.get('t') || 0)); requestAnimationFrame(() => { document.title = 'ready'; }); }
+else initPlayer();
+
+function duration() { return Math.max(S.duration, audio && isFinite(audio.duration) ? audio.duration : 0); }
+var audio = null;
+
+function initPlayer() {
+  let playing = false, t = +(q.get('t') || 0), t0 = 0, p0 = 0, stopSound = null, recording = null, voSource = null, recDest = null;
+  const fmt = x => x.toFixed(2);
+  const draw = () => {
+    S.seek(Math.min(t, S.duration));
+    $('scrub').value = Math.round((t / duration()) * 1000);
+    $('time').textContent = `${fmt(t)} / ${fmt(duration())}`;
+    const cue = $('caps').checked && S.cues && S.cues.find(c => t >= c.start && t < c.end);
+    $('cap').textContent = cue ? cue.text : '';
+  };
+  const soundOff = () => { if (stopSound) { stopSound(); stopSound = null; } };
+  const soundOn = () => {
+    soundOff();
+    if (!$('snd').checked) return;
+    stopSound = SOUND.live(k => style.sound(k), t, { voiceover: !!audio, map: S.toReal, tap: recDest });
+  };
+  const routeVoice = () => { // the voiceover goes through the AudioContext so the recorder can hear it
+    if (audio && !voSource) { const ctx = SOUND.ctx(); voSource = ctx.createMediaElementSource(audio); voSource.connect(ctx.destination); if (recDest) voSource.connect(recDest); }
+  };
+  const play = () => {
+    SOUND.ctx().resume();
+    if (t >= duration() - 0.01) t = 0;
+    playing = true; $('play').textContent = 'Pause';
+    if (audio) { routeVoice(); audio.currentTime = t; audio.play(); }
+    t0 = performance.now(); p0 = t;
+    soundOn();
+  };
+  const pause = () => { playing = false; $('play').textContent = 'Play'; if (audio) audio.pause(); soundOff(); };
+  const seekTo = x => { t = Math.max(0, Math.min(x, duration())); if (audio) audio.currentTime = t; t0 = performance.now(); p0 = t; if (playing) soundOn(); draw(); };
+  const tick = () => {
+    if (playing) {
+      t = audio ? audio.currentTime : p0 + (performance.now() - t0) / 1000;
+      if (t >= duration()) {
+        if (recording) { t = duration(); draw(); pause(); recording.stop(); }
+        else if ($('loop').checked) { seekTo(0); if (audio) audio.play(); }
+        else { t = duration(); pause(); }
+      }
+      draw();
+    }
+    requestAnimationFrame(tick);
+  };
+  $('play').onclick = () => (playing ? pause() : play());
+  $('scrub').oninput = e => seekTo((e.target.value / 1000) * duration());
+  $('snd').onchange = () => (playing ? soundOn() : soundOff());
+  $('caps').onchange = draw;
+  addEventListener('keydown', e => {
+    if (e.target.tagName === 'TEXTAREA') return;
+    if (e.code === 'Space') { e.preventDefault(); playing ? pause() : play(); }
+    if (e.code === 'ArrowRight') { pause(); seekTo(Math.round(t * 30 + 1) / 30); }
+    if (e.code === 'ArrowLeft') { pause(); seekTo(Math.round(t * 30 - 1) / 30); }
+  });
+
+  // Voiceover: the audio element is the clock.
+  $('voFile').onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    pause(); voSource?.disconnect(); voSource = null;
+    if (audio) URL.revokeObjectURL(audio.src);
+    audio = new Audio(URL.createObjectURL(f));
+    audio.onloadedmetadata = () => { msg(`Voiceover: ${f.name}, ${audio.duration.toFixed(2)} s. The audio is the clock. Effects play 6 dB lower, beds 12 dB lower, music is muted.`); seekTo(0); };
+    $('voClear').hidden = false; e.target.value = '';
+  };
+  $('voClear').onclick = () => {
+    pause(); voSource?.disconnect(); voSource = null; URL.revokeObjectURL(audio.src); audio = null;
+    S.setCues(null); $('voClear').hidden = true; msg('Voiceover and cues removed. Canonical timing.'); seekTo(0);
+  };
+  $('srtBtn').onclick = () => { $('srtBox').style.display = $('srtBox').style.display === 'block' ? 'none' : 'block'; };
+  const applySrt = text => {
+    try {
+      const cues = parseSRT(text);
+      if (!cues.length) throw new Error('No cues found');
+      S.setCues(cues); pause(); seekTo(0);
+      msg(`${cues.length} cues. ${style.beats.length} beats re-timed to the voice. Duration ${S.duration.toFixed(2)} s.`);
+    } catch (err) { msg(err.message, true); }
+  };
+  $('srtApply').onclick = () => applySrt($('srtText').value);
+  $('srtFile').onchange = async e => { const f = e.target.files[0]; if (f) { $('srtText').value = await f.text(); applySrt($('srtText').value); } e.target.value = ''; };
+  $('srtClear').onclick = () => { S.setCues(null); pause(); seekTo(0); msg('Cues cleared. Canonical timing.'); };
+
+  // Record WebM: canvas stream + kit sound + voiceover, real time.
+  $('rec').onclick = () => {
+    if (recording) return;
+    const ctx = SOUND.ctx(); ctx.resume();
+    recDest = ctx.createMediaStreamDestination();
+    if (voSource) voSource.connect(recDest);
+    const stream = new MediaStream([...$('c').captureStream(30).getVideoTracks(), ...recDest.stream.getAudioTracks()]);
+    const type = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m));
+    const rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 12e6 });
+    const chunks = [];
+    rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+    rec.onstop = () => {
+      download(new Blob(chunks, { type: 'video/webm' }), `${id}.webm`);
+      voSource?.disconnect(recDest); recDest = null; recording = null;
+      $('rec').textContent = 'Record WebM'; msg('Saved ' + id + '.webm. Real-time capture: dropped frames are possible on a slow machine.');
+    };
+    pause(); seekTo(0);
+    recording = rec; rec.start(250);
+    $('rec').textContent = 'Recording…'; msg('Recording in real time from 0 to the end. Do not switch tabs.');
+    play();
+  };
+  $('wav').onclick = async () => {
+    msg('Rendering sound…');
+    const buf = await SOUND.renderOffline(k => style.sound(k), S.duration, 48000, { voiceover: !!audio, map: S.toReal });
+    let peak = 0; for (let c = 0; c < buf.numberOfChannels; c++) for (const v of buf.getChannelData(c)) peak = Math.max(peak, Math.abs(v));
+    download(SOUND.toWav(buf), `${id}.wav`);
+    msg(`Saved ${id}.wav: ${buf.duration.toFixed(2)} s, peak ${(20 * Math.log10(peak || 1e-9)).toFixed(1)} dBFS. Kit sound only, without the voiceover.`);
+  };
+  function download(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); }
+
+  draw();
+  requestAnimationFrame(tick);
+}
+</script>
+</body>
+</html>

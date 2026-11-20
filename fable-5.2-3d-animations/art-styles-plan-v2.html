@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Art Styles Plan v2</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --text2:#cbd5e1; --muted:#94a3b8; --a1:#fb923c; --a2:#2dd4bf; --b1:#1e293b; --b2:#334155; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text2); font:16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { color:var(--text); font-size:1.9rem; margin:0 0 4px; }
+  h2 { color:var(--text); font-size:1.3rem; margin:40px 0 12px; padding-top:16px; border-top:1px solid var(--b2); }
+  h3 { color:var(--a2); font-size:1.05rem; margin:24px 0 8px; }
+  .sub { color:var(--muted); margin:0 0 24px; }
+  code { background:var(--card); border:1px solid var(--b2); border-radius:4px; padding:1px 5px; font-size:.9em; color:var(--text); }
+  .table-wrap { overflow-x:auto; }
+  table { border-collapse:collapse; width:100%; margin:8px 0 16px; font-size:.93rem; }
+  th, td { border:1px solid var(--b2); padding:7px 9px; text-align:left; vertical-align:top; }
+  th { background:var(--card); color:var(--text); }
+  td.n { color:var(--muted); white-space:nowrap; }
+  td.nm { color:var(--text); font-weight:600; min-width:150px; }
+  td.in { white-space:nowrap; font-family:ui-monospace, Consolas, monospace; font-size:.85rem; }
+  .tag { display:inline-block; border-radius:4px; padding:0 6px; font-size:.78rem; border:1px solid var(--b2); }
+  .tag.new { color:var(--a1); border-color:var(--a1); }
+  .tag.keep { color:var(--a2); border-color:var(--a2); }
+  .tag.ver { color:var(--text); border-color:var(--muted); }
+  .card { background:var(--card); border:1px solid var(--b2); border-radius:10px; padding:14px 16px; margin:12px 0; }
+  .warn { border-color:var(--a1); } .warn strong { color:var(--a1); }
+  .rec { border-color:var(--a2); } .rec strong { color:var(--a2); }
+  ol li, ul li { margin:4px 0; }
+  .meta { color:var(--muted); font-size:.85rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>100 Art Styles — Plan v2</h1>
+<p class="sub">A revision of <a href="art-styles-plan.html" style="color:var(--a2)">art-styles-plan.html</a>. The original file is not changed. Status: plan only. No code is written and no style in this file was rendered. Date: 2026-11-13. Phase 0 done on 2026-11-13: the owner answered the 7 decisions (section 7) and the list was edited (section 4b).</p>
+
+<h2>0. Review of the original plan</h2>
+<p>The structure of the original plan is correct and stays: animation = scene + art style, the art style is a post shader with no topic, 5 phases, a pilot before the 100. The weak part is the draft list. It has four defects.</p>
+<ol>
+  <li><strong>The entries are names only.</strong> A name such as "tempera" does not say what the frame shows or how it moves. The owner cannot judge the list.</li>
+  <li><strong>Many entries give the same picture as a filter.</strong> Examples: gouache, tempera and fresco; sepia, daguerreotype and tintype; cross-stitch and needlepoint; halftone newsprint, comic book dots and manga screentone; tile mosaic and Byzantine mosaic; 8-bit, 16-bit, 4-shade green and 4-colour PC palette. The plan's own Phase 4 pixel-difference check would flag these pairs.</li>
+  <li><strong>One entry repeats the first set.</strong> The plan says the draft does not repeat the existing styles. "Ukiyo-e print" repeats style 46, Woodblock Print.</li>
+  <li><strong>Most entries are filters on a finished picture.</strong> A filter of that type does not use the two things this project has and a photo filter does not have: the 3D data (depth, surface direction) and the timeline (beats).</li>
+</ol>
+<p>Count: of the 100 original entries, <span id="cKeep"></span> stay (some merged or renamed). 59 were cut in the v2 review (section 4) and 6 more in the Phase 0 list edit (section 4b).</p>
+
+<h2>1. The new rule for an art style</h2>
+<p>An entry goes on the list only if it does one or more of these. A flat colour change alone is not sufficient.</p>
+<ul>
+  <li><strong>The medium changes with time.</strong> Pigment spreads and dries. A photo develops. An ink layer is pulled. The change is tied to the beats.</li>
+  <li><strong>The marks follow the surface.</strong> Stroke direction comes from the surface direction. Marks are fixed to the object, so they do not slide when the camera moves.</li>
+  <li><strong>The depth is the material.</strong> The depth image becomes paper sheets, a carving, porcelain thickness or a stereo pair.</li>
+  <li><strong>Light or an instrument makes the picture.</strong> Thin-film colour, a stripe projector, a scanning beam.</li>
+</ul>
+<p>Each style has no topic and works on any scene, as in the original plan.</p>
+<div class="card warn"><strong>Limits found in the code:</strong>
+<ul>
+  <li><strong>No memory between frames.</strong> <code>update(t)</code> sets the full state for <code>t</code> (HANDOFF section 2). A shader cannot read the frame before. Thus datamosh and feedback trails are not possible. Each time effect in the list is a function of <code>t</code> and the beat times only.</li>
+  <li><strong>A post shader cannot tell which object is new.</strong> A beat effect ("the picture develops") applies to the full frame.</li>
+  <li><strong>Labels do not write depth</strong> (HANDOFF build log, board-game note). A depth-based style sees a label as background. Section 5 proposes a separate label pass.</li>
+  <li><strong>Tone mapping runs after the post shader</strong> (pencil-sketch note: multiply paper white by about 2.2). <strong>Posterize in gamma space</strong> (woodblock note).</li>
+</ul></div>
+
+<h2>2. The list: 100 art styles in 10 groups</h2>
+<p>Each row says what the frame shows and how the medium moves. <span class="tag keep">keep</span> = from the original draft (possibly merged or renamed). <span class="tag new">new</span> = not in the original draft. <span class="tag ver">ver</span> = an art-style version of a first-set style (decision 1); the source id is in the tag column. Generic names only.</p>
+<p><strong>Inputs</strong> (expected, not tested): <code>C</code> colour image, <code>D</code> depth, <code>N</code> surface direction. These three exist in the kit today. <code>W</code> world position, <code>B</code> beat times, <code>S</code> frame step, <code>M</code> material change, <code>X</code> renders at earlier times. These five need the kit changes in section 5.</p>
+<div id="list"></div>
+<p id="counts" class="meta"></p>
+
+<h3>Highest expected effect (a judgment, not a measurement)</h3>
+<p>If the pilot must show the upper limit quickly, these 12 are my selection: Paper-cut light box (21), Banknote engraving (11), Lithophane (24), Moiré fringe (27), Ridgeline plot (26), Soap film (31), Coloured shadows (39), Electron micrograph (43), Wet watercolor (1), Scratch on film (59), Flip sequins (75), Cave wall by torchlight (89).</p>
+
+<h3>Styles near the first set</h3>
+<p>These are not repeats, but the Phase 4 difference check must compare them with the existing style named here:</p>
+<ul>
+  <li>Cel animation (51) against <code>ink-toon</code> and against Ink and toon (56).</li>
+  <li>Blue pencil test (53) against <code>pencil-sketch</code>.</li>
+  <li>One-bit dither (62) against E-ink (47).</li>
+  <li>Lidar scan (41) against <code>hologram-table</code>.</li>
+  <li>Paper-cut light box (21) against <code>paper-popup</code> and <code>contour-stack</code>.</li>
+  <li>Cloisonné (77) and Mosaic (74) against <code>stained-glass</code> and against Stained glass (36).</li>
+  <li>Linocut (16) against <code>woodblock</code> and against Woodblock print (61).</li>
+  <li>Voxel cells (23) against Low-poly facets (97). Needle felt (71) against Tufted rug (78). Loom weave (72) against Silk embroidery (18).</li>
+</ul>
+<p><strong>Version check (15 <span class="tag ver">ver</span> rows):</strong> compare each version on a new scene with its source style in the first set. This check is the reverse of the others: the version must give the same look, so a large difference in look is a fail. The scene content is different by design.</p>
+
+<h3>Hard cases</h3>
+<ul>
+  <li><strong>Autostereogram (29):</strong> labels cannot be read, and some viewers cannot see the effect. It is a deliberate special case. The shader needs a loop of about 30 texture reads for each pixel. Decision 7: keep it, with a note on its card.</li>
+  <li><strong>Event camera (49), Motion echoes (92), Long exposure (100):</strong> input <code>X</code>. Each frame needs 2 to 16 scene renders, so live play is slower by about that factor. <code>stage.js:322-335</code> already averages sub-frames at offset times with a short shutter; long exposure is that loop with a 1-second shutter. See decision 6.</li>
+  <li><strong>Faceted multi-view (91):</strong> the original plan expected several cameras. This version shifts each facet with the depth image, with one camera. It gives a small change of view point only, and it leaves gaps at depth steps.</li>
+  <li><strong>Quilling (67), Mosaic (74), Flow-field strokes (20):</strong> the marks must follow edges over a distance. A shader does this with many texture reads. Expect slow frames in headless Chrome with software rendering.</li>
+  <li><strong>One-bit dither (62), with its 16-colour option:</strong> the original plan asked for a low-size render in the kit. A shader can read the colour image at the centre of each large pixel instead. No kit change, if the result is clean.</li>
+</ul>
+<h3>Reserve</h3>
+<p>If a style drops out, replace it from this list (all from the original draft): Islamic tile geometry, film noir, teletext, tissue paper, Art Nouveau. Two more, not from the original draft: mechanical television (30 curved scan lines in orange light), solarised print (partly reversed tones).</p>
+<h3>Weakest entries</h3>
+<p>The v2 review named 8 rows with input <code>C</code> only and 3 pairs with one mechanism. The Phase 0 list edit cut all 8 rows and one row of each pair (section 4b). No row now has input <code>C</code> only.</p>
+<p>2 new pairs use one mechanism with a different surface. Phase 4 must compare them: Stained glass (36) and Cloisonné (77), cells with an outline; Corona discharge (40) and Vector scope (45), glowing lines at the edges.</p>
+
+<h2>3. Not possible, with the reason</h2>
+<ul>
+  <li><strong>Datamosh and feedback trails:</strong> each needs the frame before. See section 1. Long exposure and the event camera are different: they need a render at a different time, which is deterministic. They are in the list with input <code>X</code>.</li>
+  <li><strong>Slit-scan (a different time in each column):</strong> needs one scene render for each strip. The existing style <code>time-slice</code> does this inside its own file with 24 renders. As a kit function it has 1 user.</li>
+  <li><strong>Low-res early-3D jitter:</strong> the jitter is in the vertex positions. It needs a patch to each material's vertex shader, not a post shader.</li>
+</ul>
+
+<h2>4. Cut from the original draft</h2>
+<p>59 entries: 29 + 10 + 12 + 7 + 1. Renamed entries that stay are not in this table: etching (11), Chinese ink landscape (25), daguerreotype (3), manga screentone (57), torn paper (64), Byzantine mosaic (74), Cubism (91), long exposure (100), 8-bit pixel art (now the 16-colour option of One-bit dither, 62), ASCII (98).</p>
+<div class="table-wrap"><table>
+<tr><th>Reason</th><th>Entries</th></tr>
+<tr><td>Same picture as a kept entry</td><td>gouache, tempera, encaustic wax, finger paint, marker, pastel, silverpoint, red chalk, ballpoint pen, mezzotint, monotype, needlepoint, beadwork, fuse beads, cel-shaded game, hand-painted anime background, 1950s limited animation, rotoscope, Impressionism, Fauvism, Expressionism, Pop Art, Bauhaus, Constructivism, Egyptian wall painting, tintype, sepia, lomography, two-strip early colour film</td></tr>
+<tr><td>Merged into a kept entry</td><td>wet-on-wet (1), palette knife (12), stipple pen (19), comic book dots (62), collage (64), tile mosaic (74), airbrush (99), 16-bit pixel art, 4-shade green and 4-colour PC palette (97)</td></tr>
+<tr><td>Repeats or is near the first set</td><td>ukiyo-e print (<code>woodblock</code>), silhouette cut (<code>shadow-puppets</code>), papercraft and kirigami (<code>origami-fold</code>, <code>low-poly</code>), cardboard (<code>contour-stack</code>), letterpress (<code>embossed</code>), felt appliqué (<code>needle-felt</code>), wireframe and CRT/VHS (<code>vector-scope</code>, <code>signal-glitch</code>), LED matrix (<code>flip-disc</code>), infrared and night vision (<code>thermal</code>)</td></tr>
+<tr><td>Small effect for the work, or in the reserve</td><td>macramé, tilt-shift, Islamic tile geometry, film noir, teletext, tissue paper, Art Nouveau</td></tr>
+<tr><td>Not possible as a post shader</td><td>low-res early-3D jitter</td></tr>
+</table></div>
+<p>Decision 1 changed after this table was written: the owner chose "make new versions" of the first-set art looks. Thus some looks in the row "Repeats or is near the first set" come back as <span class="tag ver">ver</span> rows: ukiyo-e as Woodblock print (61), felt appliqué as Needle felt (71), wireframe as Vector scope (45), infrared as Thermal camera (38).</p>
+
+<h3>4b. Phase 0 list edit (2026-11-13)</h3>
+<p>The owner chose: cut the 8 rows with input <code>C</code> only, plus 7 more weak rows, and put 15 versions of first-set styles in their places. Each version takes the number of the row it replaces, so the numbers of the other 85 rows do not change. The 7 extra cuts and the selection of the 15 versions are my judgment; the owner can change them.</p>
+<div class="table-wrap"><table>
+<tr><th>#</th><th>Cut</th><th>Reason</th><th>Replaced by</th></tr>
+<tr><td class="n">23</td><td>Gold repoussé</td><td>One mechanism with Stone bas-relief (22)</td><td>Voxel cells (<code>voxel</code>)</td></tr>
+<tr><td class="n">34</td><td>Blacklight</td><td>Input <code>C</code> only</td><td>X-ray film (<code>xray</code>)</td></tr>
+<tr><td class="n">35</td><td>Photogram</td><td>Near the new Shadow-puppet screen (white shapes on black against dark shapes on cloth, edge softness from depth in both)</td><td>Shadow-puppet screen (<code>shadow-puppets</code>)</td></tr>
+<tr><td class="n">36</td><td>Paper lantern</td><td>Input <code>C</code> only; one mechanism with Punched-tin lantern (79)</td><td>Stained glass (<code>stained-glass</code>)</td></tr>
+<tr><td class="n">38</td><td>Photoelastic fringes</td><td>One mechanism with Soap film (31)</td><td>Thermal camera (<code>thermal</code>)</td></tr>
+<tr><td class="n">45</td><td>Stained slide</td><td>Input <code>C</code> only</td><td>Vector scope (<code>vector-scope</code>)</td></tr>
+<tr><td class="n">56</td><td>Clear-line comic</td><td>Smallest effect in group 6; near Cel animation (51)</td><td>Ink and toon (<code>ink-toon</code>)</td></tr>
+<tr><td class="n">61</td><td>Risograph</td><td>Input <code>C</code> only</td><td>Woodblock print (<code>woodblock</code>)</td></tr>
+<tr><td class="n">62</td><td>Four-colour halftone</td><td>Input <code>C</code> only</td><td>One-bit dither (<code>one-bit</code>)</td></tr>
+<tr><td class="n">69</td><td>Sticker sheet</td><td>Small effect: a border and a shadow only</td><td>Blueprint (<code>blueprint</code>)</td></tr>
+<tr><td class="n">71</td><td>Cross-stitch</td><td>Input <code>C</code> only</td><td>Needle felt (<code>needle-felt</code>)</td></tr>
+<tr><td class="n">72</td><td>Knit</td><td>Input <code>C</code> only</td><td>Loom weave (<code>loom-weave</code>)</td></tr>
+<tr><td class="n">80</td><td>Wire and shadow</td><td>Near Shadow-puppet screen (35) and Coloured shadows (39)</td><td>Soft clay (<code>soft-clay</code>)</td></tr>
+<tr><td class="n">94</td><td>Reeded glass</td><td>Input <code>C</code> only</td><td>Signal glitch (<code>signal-glitch</code>)</td></tr>
+<tr><td class="n">97</td><td>Pixel art</td><td>Merged into One-bit dither (62) as its 16-colour option</td><td>Low-poly facets (<code>low-poly</code>)</td></tr>
+</table></div>
+<p>First-set art looks with no version row, because a row in the list is already near them: <code>pencil-sketch</code> (Blue pencil test, 53), <code>hologram-table</code> (Lidar scan, 41), <code>embossed</code> (Stone bas-relief, 22), <code>neon-tube</code> (Corona discharge, 40, and Vector scope, 45), <code>paper-popup</code> (Paper-cut light box, 21).</p>
+
+<h2>5. Kit changes (Phase 1)</h2>
+<p><code>atlas/kit/stage.js</code> has 355 lines and a limit of about 500. The line counts below are estimates. The user counts come from the list in section 2.</p>
+<div class="table-wrap"><table id="kit">
+<tr><th>Input</th><th>Change</th><th>Lines (estimate)</th><th>Styles that use it</th></tr>
+</table></div>
+<p>The scene and art style combination, and the two-scene test of option A, stay as in the original plan (sections 1 and 2 there).</p>
+
+<h2>6. Phases (changes from the original only)</h2>
+<ul>
+  <li><strong>Phase 0:</strong> the owner answers the 7 decisions in section 7 and edits the list in section 2.</li>
+  <li><strong>Phase 1 pilot:</strong> 4 art styles in place of 2, one for each type of input, on 2 scenes: Paper-cut light box (<code>D</code> only, lowest risk), Wet watercolor (<code>B</code>), Banknote engraving (<code>N W</code>, highest risk), Cel animation (<code>M S</code>). Decision 6 is "approve", so Long exposure (<code>X</code>, 100) is the fifth pilot style. Stop and report if live play is below 15 frames per second. The original pilot (watercolor, linocut) tested no new kit input except beats. The owner reviews before Phase 2.</li>
+  <li><strong>Phase 3:</strong> build in the group sequence of section 2. Do the similarity check of Phase 4 after each group, not only at the end, so a pair that is too similar is found before the next group is built.</li>
+  <li><strong>Phase 4:</strong> add the comparisons in "Styles near the first set" and the 3 pairs in "Weakest entries". Record the render time of each style for one frame; flag a style that is more than 5 times slower than the median.</li>
+  <li>Phases 2 and 5 do not change. Decision 4: Phase 3 uses 5 subagents, 1 group each, 2 rounds. The owner approved this on 2026-11-13.</li>
+</ul>
+
+<h2>7. Open decisions</h2>
+<div class="table-wrap"><table>
+<tr><th>#</th><th>Decision</th><th>Default</th><th>Owner's answer (2026-11-13)</th></tr>
+<tr><td>1</td><td><strong>Overlap:</strong> leave out the first-set art looks, or make new art-style versions of them?</td><td>Leave them out.</td><td><strong>Make new versions.</strong> 15 <span class="tag ver">ver</span> rows (section 4b).</td></tr>
+<tr><td>2</td><td><strong>Scenes:</strong> option A (reuse existing animations) or option B (10 new scenes)?</td><td>A, after the 2-scene test.</td><td>Default.</td></tr>
+<tr><td>3</td><td><strong>Names:</strong> generic names only?</td><td>Generic names only.</td><td>Default.</td></tr>
+<tr><td>4</td><td><strong>Agents:</strong> 5 subagents in Phase 3, or one session without agents?</td><td>5 subagents, after approval.</td><td>Default: 5 subagents, approved.</td></tr>
+<tr><td>5</td><td><strong>Kit inputs <code>W</code>, <code>B</code>, <code>S</code>, <code>M</code> and the label pass:</strong> approve these additions to <code>stage.js</code>?</td><td>Approve. Each has 3 or more users.</td><td>Approve all.</td></tr>
+<tr><td>6</td><td><strong>Input <code>X</code>:</strong> 3 users (49, 92, 100), which meets the 3-user rule. The cost is 2 to 16 scene renders for each frame. Approve, or replace the 3 styles from the reserve?</td><td>Approve. Stop if the pilot shows that live play is below 15 frames per second.</td><td>Default.</td></tr>
+<tr><td>7</td><td><strong>Autostereogram (29):</strong> keep a style in which labels cannot be read, or replace it?</td><td>Keep, with a note on its card.</td><td>Default.</td></tr>
+<tr><td>List</td><td><strong>List edits</strong> before Phase 1</td><td>None</td><td>Cut the 8 <code>C</code>-only rows and 7 more weak rows; put the 15 versions in their places (section 4b).</td></tr>
+</table></div>
+
+<p class="meta">Source: review session of 2026-11-13 (Claude Fable 5.2). Read for this review: <code>art-styles-plan.html</code>, <code>atlas/kit/stage.js</code> lines 225–355, <code>atlas/styles/pencil-sketch.js</code> post shader, HANDOFF sections 0 to 8 and the post-pass notes of the build log. Checked: 11 style files have no <code>post: null</code> line. Not done: no shader was written or rendered, so each "Inputs" value and each line estimate is an expectation.</p>
+</main>
+<script>
+// [name, 'keep'|'new'|'ver', inputs, what the frame shows and how it moves, source id (ver only)]
+const G = [
+['1. The medium changes with time', [
+['Wet watercolor','keep','C D B','At each beat the frame is wet: the pigment spreads to the object edges, then dries with a dark rim and paper grain.'],
+['Ink in water','new','C D B','The frame is a tank of clear water. At each beat the picture loosens into ink clouds that curl, then settle back into the shapes.'],
+['Darkroom print','keep','C B','White photo paper in a tray under red light. At each beat the picture develops: the dark areas appear first, then the mid tones.'],
+['Cyanotype sun print','keep','D B','The paper changes from yellow-green to deep blue during each beat. Objects stay white, like things laid on the paper. Near objects have sharp edges.'],
+['Ageing fresco','keep','C D B','Matte pigment on plaster. Across the timeline, cracks grow from the object edges and small flakes fall off. The last beat is the oldest.'],
+['Pyrography','new','C D N B','The picture is burnt into a wood panel. At each beat the lines glow orange, then cool to a brown burn. The wood grain shows through.'],
+['Patina plate','new','C D B','A polished copper plate. During each beat, green patina grows inward from the edges of each object.'],
+['Sand on a light box','new','C B','Dark sand on lit glass. Thick sand is dark; thin sand glows amber. Before each beat a sweep clears the glass, then the picture comes back.'],
+['Paint on glass','new','C D S','Wet oil paint on a lit glass sheet at 8 frames per second. The edges of each form drag in the brush direction, different on each frame.'],
+['Screen-print pull','keep','C B','One ink layer for each beat: yellow, red, blue, then the black key line. A squeegee crosses the frame for each layer. The layers are slightly out of register.'],
+]],
+['2. The marks follow the surface', [
+['Banknote engraving','keep','C N W','Fine parallel lines that bend around each form. The line width gives the shade. The lines stay on the object when the camera moves.'],
+['Oil impasto','keep','C N','Thick strokes that lie along each surface. The paint has height, and a low light makes the ridges shine.'],
+['Cross-contour','new','D W','No shading and no outline. Each form shows only as level lines around it, like a contour map drawn on the object.'],
+['Charcoal','keep','C N','Broad strokes along the form on rough paper. A finger smudge pulls the dark tone away from the light side.'],
+['Rainbow scratchboard','new','C N','A black coated card. Scratches follow the lit surfaces and show a rainbow layer below the black.'],
+['Linocut','keep','C N','One ink colour. The light areas are cut away with gouge marks that follow each surface. Some ridges stay and print as flecks.'],
+['Sumi-e ink wash','keep','D N','Few strokes for each object: one full stroke along the silhouette, dry-brush streaks along the form, and empty paper for the rest.'],
+['Silk embroidery','keep','C N','Long stitches lie along each surface. The silk shine moves over the stitches when the camera moves.'],
+['Fixed pointillism','keep','C W','Dots of pure colour. Each dot is fixed to a point on the object, so the dots do not slide over the picture when the camera moves.'],
+['Flow-field strokes','new','C D N','Short curved strokes. On objects they follow the surface. In the background they flow around the objects in swirls.'],
+]],
+['3. The depth is the material', [
+['Paper-cut light box','keep','D','The depth is cut into 8 paper sheets with white cut edges. A light at the back makes the far sheets glow warm.'],
+['Stone bas-relief','new','D N','The scene is a shallow carving on a stone wall. The depth is compressed to a thin layer, and a low side light shows it.'],
+['Voxel cells','ver','C W N','The world position snaps to a grid of small cubes. Each cell takes one colour and the shade of its cube face, with a dark bevel line between cells. The cells stay fixed in the world when the camera moves.','voxel'],
+['Lithophane','new','D','A thin porcelain panel lit from the back. Near parts are thick and dark; far parts are thin and bright. The picture exists only as thickness.'],
+['Mist-layer ink landscape','keep','D','The depth is cut into ink washes: near is dark, far is pale, and mist fills the gaps between the layers.'],
+['Ridgeline plot','new','C D','The picture is 80 horizontal white lines on black. Each line rises where the scene is near or bright, and hides the lines behind it.'],
+['Moiré fringe','new','D','Two fine line gratings; the depth shifts one of them. Dark fringes appear on each form like contour bands, and move with each change of depth.'],
+['Anaglyph 3D','new','C D','Red and cyan images, shifted by the depth. With red-cyan glasses the scene has real depth. Without glasses it shows coloured edges.'],
+['Autostereogram','new','D','A field of random dots that hides the scene. A viewer who relaxes the eyes sees the 3D shapes move. Labels cannot be read.'],
+['Bokeh mosaic','new','C D','All of the scene is out of focus. Each bright point is a soft disc of light. The disc size comes from the distance to the focus plane.'],
+]],
+['4. Light makes the picture', [
+['Soap film','new','C N','Each surface is a thin film with interference colours. The colour bands drain slowly downward and swirl.'],
+['Schlieren','new','D N','The surfaces are grey. Only a change of slope shows, as bright and dark bands with a colour edge. Thin plumes rise from the objects.'],
+['Prism split','new','C D','Each edge separates into a spectrum. The separation is larger for a larger depth step.'],
+['X-ray film','ver','M','All materials become glowing film: additive, back faces on. A part is brightest where the view passes through the most material. Dark scanner background.','xray'],
+['Shadow-puppet screen','ver','C D','The scene is a shadow on a cloth screen lit from behind by one flame. The edge softness and the shadow tone come from the depth. Warm flicker, visible cloth weave.','shadow-puppets'],
+['Stained glass','ver','C D N','Colour areas become glass panes, with dark lead lines at each colour or depth edge. Light comes through the panes, so the colours glow. Each pane has small bubbles and an uneven tint.','stained-glass'],
+['Afterglow','new','C B','Glow-in-the-dark paint. At each beat the room light goes off, and the picture stays as a green glow that fades until the next beat.'],
+['Thermal camera','ver','C D','A heat camera view. Brightness and nearness map to an iron-bow palette (black, violet, orange, white). Sensor noise, a crosshair and a temperature scale at the side.','thermal'],
+['Coloured shadows','new','D','A white wall and three lamps: red, green and blue. Each object casts cyan, magenta and yellow shadows. Where all three overlap, the shadow is black.'],
+['Corona discharge','new','D','A black background. Each object edge carries a violet electric fringe with small moving filaments.'],
+]],
+['5. An instrument sees the scene', [
+['Lidar scan','new','D W','The scene is points only. Scan rings move out from the scanner. The point colour is the distance.'],
+['Sonar fan','new','D N','A sector-shaped screen with range arcs. Grey speckle echoes, brighter on surfaces that face the source.'],
+['Electron micrograph','new','N','Grey only. Edges and surfaces that turn away from the view are bright. All depths are in focus. Fine scan noise.'],
+['Structured light','new','D','A projector puts fine stripes on a dark scene. The stripes bend over each form and jump at each depth step.'],
+['Vector scope','ver','D N','Only the edges show, as glowing green lines on black, with bright points at the corners, bloom and a slightly curved screen. No phosphor trails (they need input X).','vector-scope'],
+['Weather radar','new','C D','Coarse polar cells in the green, yellow and red radar scale. A sweep line turns and refreshes the cells that it passes.'],
+['E-ink','new','C B','16 grey levels on a paper-like screen. At each beat the screen flashes black and white, and a faint ghost of the last picture stays.'],
+['Photocopy generations','new','C B','Black toner with streaks. Each beat is a copy of the copy before it: more contrast, more specks, less detail.'],
+['Event camera','new','X','Only change shows. A pixel that gets brighter is blue; a pixel that gets darker is red. Things that do not move are black.'],
+['Pen plotter','new','C D B','One pen draws the frame as hatch lines. The pen head is visible. The drawing is complete a short time before the next beat.'],
+]],
+['6. Hand-made animation', [
+['Cel animation','keep','C D M S','Flat colour in two tones with an ink line, at 12 frames per second, with a small cel shadow on the background.'],
+['Rubber-hose cartoon','keep','C D S','1930s black and white: thick outlines, film grain, a frame that weaves a little, an iris at the start and the end, 12 frames per second.'],
+['Blue pencil test','new','D N S','An animator\'s line test: rough blue construction lines, a darker clean line that changes a little on each frame, peg holes, no shading.'],
+['Chalk stop-motion','keep','C D S','Chalk on a blackboard, drawn again for each frame. A grey smear stays around each form where the chalk was erased.'],
+['Cut-out animation','keep','C D S','Flat paper pieces with a small shadow below each depth layer, at 12 frames per second. The cut edges are a little uneven.'],
+['Ink and toon','ver','C D N','Two-tone flat colour, a brush outline whose width changes with the depth and surface edges, and halftone dots on the border between light and shadow.','ink-toon'],
+['Manga impact','keep','C D B','Screentone dots for the grey tones. At each beat: speed lines from the centre of the frame and one inverted frame.'],
+['Flipbook','new','C S','Pencil frames on a pad at 8 frames per second. A page curl crosses the frame at each flip. The paper shows faint lines from the page below.'],
+['Scratch on film','new','D S','Black film. The picture is scratched into it as white lines that jump on each frame, with dye spots and sprocket holes at the side.'],
+['Wax crayon','keep','C D S','Wax strokes that go outside the lines, with uneven pressure and white paper between the strokes, at 12 frames per second.'],
+]],
+['7. Print and paper', [
+['Woodblock print','ver','C D N','Flat colour areas with a gradient at the top of each, black key lines, paper fibre, and colour layers out of register by 2 pixels. Posterize in gamma space.','woodblock'],
+['One-bit dither','ver','C D S','Two colours only, large square pixels, ordered dither for each shade, at 15 frames per second. An option sets a 16-colour palette with a dark outline of one pixel (this option replaces the cut Pixel art row).','one-bit'],
+['Spray stencil','keep','C D','Three stencil layers on a rough wall, with soft overspray at the edges and paint runs below the dark areas.'],
+['Torn-paper collage','keep','C D','Each colour area is a piece of torn paper with a white fibre edge and a small shadow.'],
+['Photomontage','new','C D','Each depth layer has a different source: a halftone photo, flat coloured paper, newsprint. The edges are cut with scissors.'],
+['Paper marbling','keep','C B','Colours float on water. At each beat a comb pulls them into feather patterns, and then they settle into the picture.'],
+['Quilling','keep','C D','Paper strips on edge. The outlines are strips. The areas are filled with coils. Each strip has a shadow.'],
+['Wax rubbing','new','D N','Paper over a relief, rubbed with a wax block in one direction. Only raised edges and high surfaces take colour.'],
+['Blueprint','ver','D N','White lines in two weights on blueprint blue: heavy lines at the silhouette, thin lines at the surface edges. Paper grain, fold creases and a grid.','blueprint'],
+['Crumpled print','new','C B','The picture is printed on paper. Before each beat the paper crumples. Then it opens and keeps the crease lines.'],
+]],
+['8. Craft materials', [
+['Needle felt','ver','C D N','Each area is wool felt: fuzzy edges that break into short fibres, a soft fibre texture, no hard highlights.','needle-felt'],
+['Loom weave','ver','C B','The picture is woven thread in two directions. At each beat the shuttle weaves the new picture row by row from the bottom.','loom-weave'],
+['Patchwork quilt','keep','C D','Each area is a fabric patch with its own small print, a running stitch at the seam, and a padded surface.'],
+['Mosaic','keep','C D','Small stone and glass tiles in rows that follow the edges of each form. Gold tiles flash when the camera moves.'],
+['Flip sequins','new','C B','Two-colour sequins. At each beat a wave crosses the frame and turns the sequins to show the next picture.'],
+['Marquetry','new','C N','Wood veneers. Each area has its own wood colour, and the grain direction follows the surface.'],
+['Cloisonné','new','C D','Gold wire on each edge. Glossy enamel fills the cells. A highlight moves across the enamel.'],
+['Tufted rug','new','C D','Wool pile. Near objects have a higher pile, with a carved step at each edge.'],
+['Punched-tin lantern','new','C D','A dark metal sheet with small holes along each edge and across the bright areas. Warm light comes through the holes.'],
+['Soft clay','ver','M S','All materials become plasticine: matte, saturated, with thumb dents. Time steps on twos (12 frames per second), like stop-motion.','soft-clay'],
+]],
+['9. World traditions', [
+['Persian miniature','keep','C D','Flat colour without shadows, a gold sky, small repeat patterns on each surface, a painted border.'],
+['Illuminated manuscript','keep','C D B','Flat colour and black line on vellum. Gold leaf areas flash. A vine border grows by one part at each beat.'],
+['Greek black-figure','keep','D N','Orange clay with black figures. Inner edges are thin scratched lines that show the clay.'],
+['Batik','keep','C D','Dye in 2 or 3 colours on cloth. The wax lines stay white, and fine crack veins cross the dyed areas.'],
+['Papel picado','keep','D','Rows of tissue-paper flags that move in the wind. The picture is the holes cut in them.'],
+['Blue-and-white porcelain','new','C D','Cobalt brush painting below a glossy white glaze. The blue is darker where strokes overlap. A highlight lies on the glaze.'],
+['Gold lacquer','new','C N','Black lacquer with a picture in gold powder. The gold sparkles point by point as the camera moves.'],
+['Sand mandala','new','C B','Grains of coloured sand in fine poured lines. Each beat pours the next ring of the picture, from the centre out.'],
+['Cave wall by torchlight','new','C D','Ochre and charcoal on rough rock. One moving flame lights the wall, so the rock bumps and the picture change with the flicker.'],
+['Gold-leaf folding screen','new','C D','Mineral colour on squares of gold leaf. Gold cloud bands cover selected depth ranges. The panel folds show as soft vertical lines.'],
+]],
+['10. The picture is bent', [
+['Faceted multi-view','keep','C D','The frame is cut into flat facets. Each facet shows the scene from a slightly different view point, made from the depth image.'],
+['Motion echoes','new','X','Each moving object leaves 6 fainter copies at its earlier positions.'],
+['Dazzle stripes','new','D N','Each surface carries bold black and white stripes. The stripe direction changes with the surface direction.'],
+['Signal glitch','ver','C B','At each beat the picture breaks: scan lines shift, colour channels separate, blocks repeat. Then it repairs itself block by block before the next beat.','signal-glitch'],
+['Liquid chrome','new','M','All objects are polished chrome that reflects a studio of light panels. No post shader.'],
+['Double exposure','new','D N','Each object is a window into a second picture: a night sky with stars. A thin bright line marks the edges.'],
+['Low-poly facets','ver','M','All materials become flat-shaded facets with a small colour change on each face, in a short palette of sand, coral, cream, teal and sage. No post shader.','low-poly'],
+['Typewriter art','keep','C B','Characters on paper. Dark areas are characters typed on top of others. At each beat the carriage types the picture again, row by row.'],
+['Art Deco poster','keep','C D','Flat shapes with airbrush gradients, a sunburst behind the scene centre, thin gold lines.'],
+['Long exposure','keep','X','The shutter stays open for 1 second. Moving objects and lights become smooth trails. Things that do not move stay sharp.'],
+]],
+];
+const KIT = [
+['W','Give the shader the camera matrices. The shader then computes the world position of each pixel from the depth.','4'],
+['B','Give the shader the beat times and the canonical time. Today it gets only the real time <code>uTime</code>.','4'],
+['S','A frame step: round the time down to a multiple of 1/fps before <code>update</code>.','2'],
+['M','A hook that runs after <code>build</code> and can change the materials. It must not change the label meshes.','4'],
+['X','Render the scene at earlier times and combine the results (average, maximum or difference). The sub-frame loop at <code>stage.js:322-335</code> is the base.','12'],
+['labels','Draw the labels in a second pass after the post shader, so the art style does not make them illegible. All 100 styles use it. A label then always draws on top of the objects.','8'],
+];
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+let n = 0, keep = 0, ver = 0, html = ''; const use = {};
+for (const [title, rows] of G) {
+  html += `<h3>${title}</h3><div class="table-wrap"><table><tr><th>#</th><th>Name</th><th>What the frame shows, and how it moves</th><th>Inputs</th><th></th></tr>`;
+  for (const [name, st, inp, txt, src] of rows) {
+    n++; if (st === 'keep') keep++; if (st === 'ver') ver++;
+    inp.split(' ').forEach(k => (use[k] = (use[k] || 0) + 1));
+    html += `<tr><td class="n">${n}</td><td class="nm">${esc(name)}</td><td>${esc(txt)}</td><td class="in">${inp}</td><td><span class="tag ${st}">${st}</span>${src ? ` <code>${src}</code>` : ''}</td></tr>`;
+  }
+  html += '</table></div>';
+}
+document.getElementById('list').innerHTML = html;
+document.getElementById('cKeep').textContent = keep;
+document.getElementById('counts').textContent = `Count check (computed from the list on this page): ${n} styles; ${keep} keep, ${n - keep - ver} new, ${ver} ver. Users of each input: ` +
+  Object.keys(use).sort().map(k => `${k} ${use[k]}`).join(', ') + '.';
+document.getElementById('kit').insertAdjacentHTML('beforeend', KIT.map(([k, d, l]) =>
+  `<tr><td><code>${k}</code></td><td>${d}</td><td>${l}</td><td>${k === 'labels' ? n : use[k] || 0}</td></tr>`).join(''));
+</script>
+</body>
+</html>

@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>The Art Style Atlas</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --text2:#cbd5e1; --muted:#94a3b8; --a1:#fb923c; --a2:#2dd4bf; --line:#334155; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width:1280px; margin:0 auto; padding:32px 16px 64px; }
+  h1 { font-size:34px; margin:0 0 8px; letter-spacing:-0.01em; }
+  h1 span { color:var(--a1); }
+  .lede { color:var(--text2); max-width:760px; margin:0 0 20px; }
+  .bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:22px; }
+  .chip { background:var(--card); color:var(--text2); border:1px solid var(--line); border-radius:999px; padding:5px 12px; font:inherit; font-size:13px; cursor:pointer; }
+  .chip b { color:var(--muted); font-weight:500; margin-left:4px; }
+  .chip[aria-pressed=true] { background:var(--a1); border-color:var(--a1); color:#1a1209; }
+  .chip[aria-pressed=true] b { color:#3b2410; }
+  #search { flex:1 1 240px; max-width:360px; margin-left:auto; background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 12px; font:inherit; }
+  #search:focus, textarea:focus { outline:2px solid var(--a2); outline-offset:1px; }
+  .grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:20px; }
+  @media (max-width:980px) { .grid { grid-template-columns:repeat(2, 1fr); } }
+  @media (max-width:640px) { .grid { grid-template-columns:1fr; } h1 { font-size:27px; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; display:flex; flex-direction:column; cursor:pointer; transition:border-color .15s; }
+  .card:hover, .card:focus-visible { border-color:var(--a2); outline:none; }
+  .pv { position:relative; aspect-ratio:16/9; background:#0b1222; overflow:hidden; }
+  .pv img, .pv canvas { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
+  .pv .ph { position:absolute; inset:0; display:grid; place-items:center; text-align:center; padding:12px; color:var(--muted); font-size:18px; font-weight:600;
+    background:repeating-linear-gradient(135deg, #111c33 0 14px, #0e172b 14px 28px); }
+  .pv .ph[hidden] { display:none; }
+  .pv .ph small { display:block; font-size:12px; font-weight:400; margin-top:4px; }
+  .body { padding:12px 14px 14px; display:flex; flex-direction:column; gap:4px; flex:1; }
+  .meta { display:flex; justify-content:space-between; color:var(--muted); font-size:12px; }
+  .meta .num { font-variant-numeric:tabular-nums; }
+  .title { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .title h2 { font-size:18px; margin:0; }
+  .tag { font-size:11px; border:1px solid var(--line); color:var(--a2); border-radius:999px; padding:1px 8px; white-space:nowrap; }
+  .look { color:var(--text2); font-size:13.5px; margin:2px 0 10px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .btn { align-self:flex-start; margin-top:auto; background:var(--a1); color:#1a1209; border:0; border-radius:8px; padding:7px 14px; font:inherit; font-weight:600; font-size:13.5px; cursor:pointer; }
+  .btn:hover { filter:brightness(1.08); }
+  .btn.ghost { background:transparent; color:var(--text); border:1px solid var(--line); font-weight:500; }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .empty { color:var(--muted); padding:40px 0; text-align:center; }
+  .warn { background:#7c2d12; color:#fed7aa; padding:10px 14px; border-radius:8px; margin-bottom:16px; }
+  dialog { background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:14px; padding:0; width:min(980px, calc(100vw - 32px)); max-height:calc(100vh - 32px); }
+  dialog::backdrop { background:rgba(2,6,23,.75); }
+  .dlg { padding:18px 20px 16px; overflow:auto; max-height:calc(100vh - 34px); }
+  .dlg .pv { border-radius:10px; }
+  .dlg h2 { margin:14px 0 2px; font-size:24px; }
+  .dlg p { margin:8px 0; color:var(--text2); }
+  .dlg p b { color:var(--text); }
+  .x { position:absolute; right:12px; top:10px; background:none; border:0; color:var(--muted); font-size:26px; cursor:pointer; z-index:2; }
+  hr { border:0; border-top:1px solid var(--line); margin:16px 0; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:999px; padding:3px; }
+  .seg button { background:none; border:0; color:var(--text2); padding:5px 14px; border-radius:999px; font:inherit; cursor:pointer; }
+  .seg button[aria-pressed=true] { background:var(--a2); color:#05211d; font-weight:600; }
+  .hint { color:var(--muted); font-size:13px; margin:6px 0 10px; }
+  textarea { width:100%; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px; font:inherit; resize:vertical; }
+  label.chk { display:flex; gap:8px; color:var(--text2); margin:10px 0; align-items:flex-start; }
+  label.chk input { accent-color:var(--a2); margin-top:4px; }
+  .foot { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
+  .foot .sp { flex:1; }
+  .size { color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums; }
+  a.btn { text-decoration:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>The <span>Art</span> Style Atlas</h1>
+  <p class="lede">The second set: art styles. An art style is a shader that redraws every frame of a 3D scene as a medium, a print process or an optical effect. Each card shows the art style on the Tiny Diorama scene; the window can also show it on Floating Screens. Choose an art style, write your topic, and copy a prompt that gives Claude the art-style source, a sample scene, the rendering kit and the sound kit. <b id="count"></b> <a href="index.html" target="_blank" style="color:var(--a2)">The 100 animation styles &#8599;</a> &middot; <a href="../art-styles-math.html" target="_blank" style="color:var(--a2)">The formula of each art style &#8599;</a></p>
+  <div id="warn"></div>
+  <div class="bar" id="chips"></div>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" hidden>No style matches this filter.</div>
+</main>
+
+<dialog id="dlg">
+  <button class="x" id="dlgClose" aria-label="Close">×</button>
+  <div class="dlg">
+    <div class="pv" id="dlgPv"><canvas id="dlgCanvas" width="1920" height="1080"></canvas><div class="ph" id="dlgPh" hidden></div></div>
+    <h2 id="dlgName"></h2>
+    <div class="meta" style="justify-content:flex-start;gap:12px" id="dlgMeta"></div>
+    <p><b>Look:</b> <span id="dlgLook"></span></p>
+    <p><b>Kind:</b> <span id="dlgKind"></span></p>
+    <div class="seg" role="group" aria-label="Scene" id="sceneSeg"></div>
+    <hr>
+    <hr>
+    <div class="seg" role="group" aria-label="Voiceover">
+      <button id="voNo" aria-pressed="true">No voiceover</button><button id="voYes" aria-pressed="false">With voiceover</button>
+    </div>
+    <div class="hint" id="voHint"></div>
+    <textarea id="topic" rows="3" placeholder="Your topic, for example: how a heat pump moves heat"></textarea>
+    <textarea id="srt" rows="4" style="margin-top:8px" placeholder="Voiceover timing: paste your SRT or word timestamps (optional; Claude asks for them if this is empty)" hidden></textarea>
+    <label class="chk"><input type="checkbox" id="story"> Storyboard first: Claude renders one still per beat in this style and waits for your OK before building</label>
+    <div class="size" id="size"></div>
+    <div class="foot">
+      <button class="btn ghost" id="prev">‹ Prev</button><button class="btn ghost" id="next">Next ›</button>
+      <span class="sp"></span>
+      <a class="btn ghost" id="openPlayer" target="_blank">Open in player</a>
+      <button class="btn" id="dlgCopy">Copy prompt</button>
+    </div>
+    <textarea id="manual" rows="8" hidden readonly style="margin-top:10px"></textarea>
+  </div>
+</dialog>
+
+<script src="kit/stage.js"></script>
+<script src="kit/sound.js"></script>
+<script src="kit/prompt.js"></script>
+<script src="styles/manifest.js"></script>
+<script src="art/manifest.js"></script>
+<script type="module">
+const $ = id => document.getElementById(id);
+const LIST = window.ART_LIST;
+const FAMILIES = [...new Set(LIST.map(s => s.group))];
+const SCENES = ['tiny-diorama', 'floating-screens'].map(id => STYLE_LIST.find(s => s.id === id)); // the 2 test scenes of the art styles
+const KIND = { keep: 'An art style kept from the first plan.', new: 'A new art style.', ver: 'A new version of the first-set animation style ' };
+const pad = n => String(n).padStart(2, '0');
+if (location.protocol === 'file:') $('warn').innerHTML = '<div class="warn">This page needs a local server. Run: <code>python -m http.server 8000 --directory atlas</code>, then open http://localhost:8000/art.html.</div>';
+$('count').textContent = `${LIST.length} art styles in ${FAMILIES.length} groups.`;
+window.THREE = await import(`https://cdn.jsdelivr.net/npm/three@${K.THREE_VERSION}/build/three.module.js`);
+window.STYLES = window.STYLES || {}; window.ARTS = window.ARTS || {};
+
+// ---------- loading scenes, art styles and sources on demand
+const loaded = {};
+const loadScript = (src, get) => loaded[src] ||= new Promise((ok, no) => {
+  const s = document.createElement('script'); s.src = src;
+  s.onload = () => ok(get()); s.onerror = () => { delete loaded[src]; no(new Error('not built')); };
+  document.head.append(s);
+});
+const loadScene = sc => loadScript('styles/' + sc.file, () => STYLES[sc.id]);
+const loadArt = entry => loadScript('art/' + entry.id + '.js', () => ({ ...ARTS[entry.id], look: entry.look }));
+const texts = {};
+const getText = f => texts[f] ||= fetch(f).then(r => { if (!r.ok) throw new Error(f + ': ' + r.status); return r.text(); });
+const sourcesFor = async (entry, sc) => ({ stage: await getText('kit/stage.js'), sound: await getText('kit/sound.js'), style: await getText('styles/' + sc.file), art: await getText('art/' + entry.id + '.js') });
+
+// ---------- filters
+let family = 'All', query = '';
+function renderChips() {
+  const chips = [['All', LIST.length], ...FAMILIES.map(f => [f, LIST.filter(s => s.group === f).length])];
+  $('chips').innerHTML = chips.map(([f, n]) => `<button class="chip" aria-pressed="${f === family}" data-f="${f}">${f}<b>${n}</b></button>`).join('') +
+    `<input id="search" type="search" placeholder="Search name, look, group" value="${query.replace(/"/g, '&quot;')}">`;
+  $('chips').querySelectorAll('.chip').forEach(b => b.onclick = () => { family = b.dataset.f; renderChips(); renderGrid(); });
+  $('search').oninput = e => { query = e.target.value; renderGrid(); };
+}
+const visible = () => LIST.filter(s => (family === 'All' || s.group === family) &&
+  (!query || `${s.name} ${s.look} ${s.group}`.toLowerCase().includes(query.toLowerCase())));
+
+// ---------- grid
+function renderGrid() {
+  stopPreview();
+  const vs = visible();
+  $('empty').hidden = vs.length > 0;
+  $('grid').innerHTML = vs.map(s => `
+    <article class="card" tabindex="0" data-id="${s.id}">
+      <div class="pv"><img src="art-posters/${s.id}.jpg" alt="" loading="lazy"><div class="ph" hidden>${s.name}<small></small></div></div>
+      <div class="body">
+        <div class="meta"><span class="num">#${pad(s.n)}</span><span>${s.group}</span></div>
+        <div class="title"><h2>${s.name}</h2></div>
+        <div class="look">${s.look}</div>
+        <button class="btn copy">Copy prompt</button>
+      </div>
+    </article>`).join('');
+  $('grid').querySelectorAll('.card').forEach(card => {
+    const entry = LIST.find(s => s.id === card.dataset.id), img = card.querySelector('img'), ph = card.querySelector('.ph');
+    img.onerror = () => { img.remove(); ph.hidden = false; };
+    card.onmouseenter = () => startPreview(card, entry);
+    card.onmouseleave = () => stopPreview();
+    card.onclick = e => { if (!e.target.closest('.copy')) openDialog(entry); };
+    card.onkeydown = e => { if (e.key === 'Enter' && e.target === card) openDialog(entry); };
+    card.querySelector('.copy').onclick = e => copyPrompt(entry, SCENES[0], {}, e.target);
+  });
+}
+
+// ---------- hover preview: one shared canvas, one WebGL context
+const pvCanvas = document.createElement('canvas');
+let pv = { token: 0, S: null, raf: 0 };
+async function startPreview(card, entry) {
+  stopPreview();
+  const tok = pv.token, holder = card.querySelector('.pv');
+  let style, art;
+  try { [style, art] = await Promise.all([loadScene(SCENES[0]), loadArt(entry)]); } catch (e) { const ph = holder.querySelector('.ph'); ph.hidden = false; ph.querySelector('small').textContent = 'Not built yet'; return; }
+  if (tok !== pv.token) return;
+  holder.append(pvCanvas);
+  const S = await K.run(pvCanvas, style, { samples: 1, scale: 0.5, art });
+  if (tok !== pv.token) { S.dispose(); return; }
+  pv.S = S;
+  const t0 = performance.now();
+  const loop = now => { S.seek(((now - t0) / 1000) % S.duration); pv.raf = requestAnimationFrame(loop); };
+  pv.raf = requestAnimationFrame(loop);
+}
+function stopPreview() {
+  pv.token++;
+  cancelAnimationFrame(pv.raf);
+  if (pv.S) { pv.S.dispose(); pv.S = null; }
+  pvCanvas.remove();
+}
+
+// ---------- prompt
+const opts = () => ({ topic: $('topic').value, voiceover: vo, srt: $('srt').value, storyboard: $('story').checked });
+async function promptFor(entry, sc, o) { const [style, art] = await Promise.all([loadScene(sc), loadArt(entry)]); return buildPrompt(style, { ...o, art }, await sourcesFor(entry, sc)); }
+async function copyPrompt(entry, sc, o, btn) {
+  const label = btn.textContent;
+  let text;
+  try { text = await promptFor(entry, sc, o); } catch (e) { btn.textContent = 'Not built yet'; setTimeout(() => (btn.textContent = label), 1500); return; }
+  try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied'; setTimeout(() => (btn.textContent = label), 1500); }
+  catch (e) {
+    if (!$('dlg').open) await openDialog(entry);
+    $('manual').hidden = false; $('manual').value = text; $('manual').select();
+    $('size').textContent = 'The clipboard is not available here. Select the text below and copy it with Ctrl+C.';
+  }
+}
+
+// ---------- art style window
+let cur = null, scene = SCENES[0], dS = null, draf = 0, vo = false, dtoken = 0;
+const VO_HINT = {
+  false: 'Claude times the animation itself. Sound is a full mix with a quiet ambience bed.',
+  true: 'Timed to your narration: paste its SRT or word timestamps. On-screen text stays to key words, and effects sit below your voice. Load the audio file in the player when it is built.',
+};
+function setVo(v) { vo = v; $('voNo').setAttribute('aria-pressed', !v); $('voYes').setAttribute('aria-pressed', v); $('srt').hidden = !v; $('voHint').textContent = VO_HINT[v]; updateSize(); }
+$('voNo').onclick = () => setVo(false); $('voYes').onclick = () => setVo(true);
+['topic', 'srt', 'story'].forEach(id => $(id).addEventListener('input', () => updateSize()));
+$('sceneSeg').innerHTML = SCENES.map(sc => `<button data-id="${sc.id}">On ${sc.name}</button>`).join('');
+const markScene = () => $('sceneSeg').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.id === scene.id));
+$('sceneSeg').querySelectorAll('button').forEach(b => b.onclick = () => { scene = SCENES.find(s => s.id === b.dataset.id); if (cur) openDialog(cur); });
+async function updateSize() {
+  if (!cur) return;
+  try { const n = (await promptFor(cur, scene, opts())).length; $('size').textContent = `Prompt: ${n.toLocaleString('en-US')} characters, about ${Math.round(n / 4).toLocaleString('en-US')} tokens.`; }
+  catch (e) { $('size').textContent = 'This art style is not built yet. Its prompt is not available.'; }
+}
+async function openDialog(entry) {
+  stopPreview(); closePlayer();
+  cur = entry; const tok = ++dtoken;
+  markScene();
+  $('dlgName').textContent = entry.name;
+  $('dlgMeta').innerHTML = `<span class="num">#${pad(entry.n)}</span><span>${entry.group}</span>`;
+  $('dlgLook').textContent = entry.look;
+  $('dlgKind').textContent = KIND[entry.kind] + (entry.kind === 'ver' ? ((STYLE_LIST.find(s => s.id === entry.source) || {}).name || entry.source) + '.' : '');
+  $('openPlayer').href = `player.html?style=${scene.id}&art=${entry.id}`;
+  $('manual').hidden = true;
+  if (!$('dlg').open) $('dlg').showModal();
+  updateSize();
+  let style, art;
+  try { [style, art] = await Promise.all([loadScene(scene), loadArt(entry)]); } catch (e) { $('dlgPh').hidden = false; $('dlgPh').innerHTML = `${entry.name}<small>Not built yet</small>`; $('dlgCanvas').hidden = true; $('dlgCopy').disabled = true; return; }
+  $('dlgPh').hidden = true; $('dlgCanvas').hidden = false; $('dlgCopy').disabled = false;
+  const S = await K.run($('dlgCanvas'), style, { samples: 1, art });
+  if (tok !== dtoken || !$('dlg').open) { S.dispose(); return; }
+  dS = S; const t0 = performance.now();
+  const loop = now => { S.seek(((now - t0) / 1000) % S.duration); draf = requestAnimationFrame(loop); };
+  draf = requestAnimationFrame(loop);
+}
+function closePlayer() { dtoken++; cancelAnimationFrame(draf); if (dS) { dS.dispose(); dS = null; } }
+const step = d => { const vs = visible(), i = vs.findIndex(s => s.id === cur.id); openDialog(vs[(i + d + vs.length) % vs.length]); };
+$('prev').onclick = () => step(-1); $('next').onclick = () => step(1);
+$('dlgCopy').onclick = e => copyPrompt(cur, scene, opts(), e.target);
+$('dlgClose').onclick = () => $('dlg').close();
+$('dlg').addEventListener('close', () => { closePlayer(); cur = null; });
+$('dlg').addEventListener('click', e => { if (e.target === $('dlg')) $('dlg').close(); });
+
+setVo(false);
+renderChips();
+renderGrid();
+</script>
+</body>
+</html>

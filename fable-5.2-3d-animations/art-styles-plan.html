@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Art Styles Plan</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --text2:#cbd5e1; --muted:#94a3b8; --a1:#fb923c; --a2:#2dd4bf; --b1:#1e293b; --b2:#334155; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text2); font:16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 920px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { color:var(--text); font-size:1.9rem; margin:0 0 4px; }
+  h2 { color:var(--text); font-size:1.3rem; margin:40px 0 12px; padding-top:16px; border-top:1px solid var(--b2); }
+  h3 { color:var(--a2); font-size:1.05rem; margin:24px 0 8px; }
+  .sub { color:var(--muted); margin:0 0 24px; }
+  code { background:var(--card); border:1px solid var(--b2); border-radius:4px; padding:1px 5px; font-size:.9em; color:var(--text); }
+  pre { background:var(--card); border:1px solid var(--b2); border-radius:8px; padding:12px 14px; overflow-x:auto; color:var(--text); }
+  pre code { border:0; padding:0; background:none; }
+  .table-wrap { overflow-x:auto; }
+  table { border-collapse:collapse; width:100%; margin:8px 0 16px; font-size:.95rem; }
+  th, td { border:1px solid var(--b2); padding:8px 10px; text-align:left; vertical-align:top; }
+  th { background:var(--card); color:var(--text); }
+  .card { background:var(--card); border:1px solid var(--b2); border-radius:10px; padding:14px 16px; margin:12px 0; }
+  .warn { border-color:var(--a1); }
+  .warn strong { color:var(--a1); }
+  .rec { border-color:var(--a2); }
+  .rec strong { color:var(--a2); }
+  .groups { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:12px; }
+  .groups .card { margin:0; }
+  .groups h3 { margin-top:0; }
+  .groups p { margin:0; font-size:.93rem; }
+  ol li, ul li { margin:4px 0; }
+  .meta { color:var(--muted); font-size:.85rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>100 Art Styles — Plan</h1>
+<p class="sub">A second set of 100 animations, next to the existing 100 styles of the 3D Style Atlas. Status: plan only. No code is written. Date: 2026-11-13.</p>
+
+<h2>0. Why a second set</h2>
+<p>The existing 100 styles are complete visual ideas: a material, a scene type or a metaphor (for example Marble Run, Ant Farm, Sushi Belt). About 20 of them are art styles in the usual sense (a way to draw or paint). About 80 are scenes, machines or metaphors. This split is a judgment, not a field in the code.</p>
+<p>Each existing style file also mixes the look and the content. For example, <code>atlas/styles/soft-clay.js</code> holds fixed beats ("Start with $100", "20 years: $673"), a fixed <code>years</code> table and fixed legend labels. No style takes a new topic without a rewrite.</p>
+<p>The goal of the second set: 100 <strong>art styles</strong> — ways to draw, such as watercolor, paper cut or linocut — that work on any scene.</p>
+
+<h2>1. Main idea: separate the art style from the scene</h2>
+<p>The kit already has most of what is necessary. <code>atlas/kit/stage.js:282-303</code> has a post pass. It gives a full-screen shader three images of the rendered 3D scene: the colour (<code>tColor</code>), the depth (<code>tDepth</code>) and, if requested, the surface directions (<code>tNormal</code>). Edges, paper grain, brush strokes, dots and colour limits can all come from these. Today 11 of the 100 existing style files use a post shader. The other 89 set <code>post: null</code>.</p>
+<pre><code>animation = scene     (what happens: objects, camera, beats, topic)
+          + art style (how it is drawn: shader, materials, palette, frame step)</code></pre>
+<ul>
+  <li><strong>Art style file</strong> (<code>atlas/art/&lt;id&gt;.js</code>): name, description, <code>post</code> shader, an optional material change (for example flat colours with no shading), a palette, a frame step (for example "on twos" for a hand-drawn feel). It has no topic.</li>
+  <li><strong>Scene file</strong>: like an existing style file. It has <code>build</code>, <code>update</code>, beats and a topic.</li>
+</ul>
+<div class="card rec"><strong>Result:</strong> 100 animations. Also, any art style works on any scene: 100 art styles × 10 scenes = 1,000 combinations with no extra code. Each new art style can take a new topic.</div>
+
+<h2>2. Where the scenes come from</h2>
+<div class="table-wrap">
+<table>
+<tr><th>Option</th><th>Work</th><th>Risk</th></tr>
+<tr><td><strong>A.</strong> Use about 10 existing animations as scenes. Pick ones with a plain look: <code>white-model</code>, <code>tiny-diorama</code>, <code>toy-blocks</code>, <code>exploded-view</code>, <code>low-poly</code>, <code>domino-chain</code>, and similar.</td><td>Lowest. No new scenes.</td><td>The kit has one post pass, so pick only scenes with <code>post: null</code> (89 of 100; <code>white-model</code> and <code>tiny-diorama</code> are two of them). Their materials and labels are made for their own look, so a filter can clash. If a material change replaces all materials, the text labels disappear, because the labels are textures.</td></tr>
+<tr><td><strong>B.</strong> Write 10 new plain scenes for filters: clear shapes, strong outlines, mid-grey materials, labels kept outside the filter.</td><td>About 10 extra files.</td><td>Lower clash risk. Filters look better.</td></tr>
+</table>
+</div>
+<div class="card rec"><strong>Recommendation:</strong> test option A on 2 scenes first. If the filters look good, use A. If not, use B.</div>
+
+<h2>3. Draft list of 100 art styles</h2>
+<p>10 groups of 10. Generic names only: no studio or artist names (see decision 3). This is a draft for the owner to change.</p>
+<div class="groups">
+  <div class="card"><h3>1. Drawing</h3><p>charcoal, ballpoint pen, ink wash (sumi-e), stipple pen, chalkboard, kids' crayon, marker, pastel, silverpoint, red chalk</p></div>
+  <div class="card"><h3>2. Paint</h3><p>watercolor, gouache, oil impasto, fresco, airbrush, tempera, encaustic wax, finger paint, palette knife, wet-on-wet</p></div>
+  <div class="card"><h3>3. Print</h3><p>linocut, risograph, screen print, etching, halftone newsprint, cyanotype, mezzotint, street stencil, letterpress, monotype</p></div>
+  <div class="card"><h3>4. Paper</h3><p>layered paper cut, silhouette cut, collage, torn paper, quilling, kirigami, cardboard, tissue paper, papercraft, paper marbling</p></div>
+  <div class="card"><h3>5. Animation</h3><p>cel anime, hand-painted anime background, 1930s rubber-hose cartoon, 1950s limited animation, rotoscope, cut-out animation, manga screentone, comic book dots, clear-line comic, cel-shaded game</p></div>
+  <div class="card"><h3>6. Retro digital</h3><p>8-bit pixel art, 16-bit pixel art, ASCII, CRT and VHS, 4-shade handheld green, 4-colour PC palette, low-res early-3D jitter, teletext, LED matrix, wireframe</p></div>
+  <div class="card"><h3>7. Art movements</h3><p>Impressionism, Pointillism, Cubism, Art Deco, Bauhaus, Constructivism, Pop Art, Art Nouveau, Fauvism, Expressionism</p></div>
+  <div class="card"><h3>8. World traditions</h3><p>ukiyo-e print, Chinese ink landscape, Persian miniature, illuminated manuscript, Byzantine mosaic, Greek black-figure pottery, Islamic tile geometry, batik, papel picado, Egyptian wall painting</p></div>
+  <div class="card"><h3>9. Textile and craft</h3><p>cross-stitch, embroidery, knit, patchwork quilt, beadwork, fuse beads, tile mosaic, felt appliqué, macramé, needlepoint</p></div>
+  <div class="card"><h3>10. Photo and film</h3><p>film noir, two-strip early colour film, daguerreotype, tintype, infrared, night vision, tilt-shift, lomography, long exposure, sepia</p></div>
+</div>
+
+<h3>Overlap with the existing 100</h3>
+<p>About 15 existing styles are already art styles. Examples: Pencil Sketch, Ink and Toon, Woodblock Print, One-Bit Dither, Low-Poly, Voxel, Stained Glass, Thermal Camera, X-Ray. The draft list does not repeat them (see decision 1).</p>
+
+<h3>Hard cases</h3>
+<p>The post pass sees only the final picture, so some styles need more than a filter:</p>
+<ul>
+  <li><strong>Pixel art:</strong> render at a low size, then scale up. Needs a small kit change.</li>
+  <li><strong>Knit, cross-stitch, mosaic:</strong> a grid shader can make them.</li>
+  <li><strong>Cubism:</strong> needs several camera views in one frame. Expected to be the hardest. It can drop out.</li>
+</ul>
+
+<h2>4. Phases</h2>
+<div class="card warn"><strong>Warning:</strong> the rule in <code>HANDOFF.md</code> says "no subagents without the owner's approval". Phase 3 uses subagents. Start Phase 3 only after the owner approves the number of agents.</div>
+<ol>
+  <li><strong>Phase 0 — decisions and list.</strong> The owner answers the 4 decisions in section 5 and changes the list. Output: the final list, in a new section of <code>HANDOFF.md</code>.</li>
+  <li><strong>Phase 1 — kit and pilot.</strong> No agents. Add to <code>stage.js</code>:
+    <ul>
+      <li>a way to put a scene and an art style together;</li>
+      <li>an optional material change;</li>
+      <li>a low-res render option;</li>
+      <li>a frame step option.</li>
+    </ul>
+    Keep the file below the 500-line limit (355 lines now). Then build 2 art styles (watercolor, linocut) on 2 scenes. <strong>The owner reviews the result before Phase 2.</strong></li>
+  <li><strong>Phase 2 — scenes.</strong> Option A: choose 10 existing animations and check each one under 3 filters. Option B: write 10 new scenes.</li>
+  <li><strong>Phase 3 — 100 art styles, in parallel.</strong> Each art style is its own file, so agents do not edit the same files. Plan: 5 agents at a time, 1 group of 10 styles each, 2 rounds (the session limit is fewer than 10 agents). Each agent writes only <code>atlas/art/&lt;id&gt;.js</code> files. Only the lead agent edits the shared files (manifest, kit, gallery), so there are no merge conflicts.</li>
+  <li><strong>Phase 4 — checks.</strong>
+    <ul>
+      <li>Extend <code>atlas/tools/test.mjs</code>: no errors, the same frame each time for the same <code>t</code>, no blank frames.</li>
+      <li>Render all 100 art styles on <strong>the same scene at the same time</strong>, on contact sheets. Compare the pairs by pixel difference and flag pairs that are too similar. This check answers "is each one really different", which is not answered for the existing 100.</li>
+      <li>Make 100 posters.</li>
+    </ul></li>
+  <li><strong>Phase 5 — gallery and prompt.</strong>
+    <ul>
+      <li><code>index.html</code>: a second tab, "Art styles", from a second manifest.</li>
+      <li><code>player.html?art=&lt;id&gt;&amp;scene=&lt;id&gt;</code>: choose any art style and any scene.</li>
+      <li><strong>Copy prompt</strong>: the prompt contains the art style file and the kit. Claude then applies that drawing method to the user's topic.</li>
+    </ul></li>
+</ol>
+
+<h2>5. Open decisions</h2>
+<div class="table-wrap">
+<table>
+<tr><th>#</th><th>Decision</th><th>Default</th></tr>
+<tr><td>1</td><td><strong>Overlap:</strong> leave out the about 15 existing art-like styles, or make new art-style versions of them?</td><td>Leave them out.</td></tr>
+<tr><td>2</td><td><strong>Scenes:</strong> option A (reuse existing animations) or option B (10 new scenes)?</td><td>A, after the 2-scene test.</td></tr>
+<tr><td>3</td><td><strong>Named styles such as "Ghibli":</strong> generic names only, such as "hand-painted anime background"? The existing spec does not permit names and branding from the source video; a studio name is a similar case.</td><td>Generic names only.</td></tr>
+<tr><td>4</td><td><strong>Agents:</strong> 5 subagents in Phase 3, or build all 100 in one session without agents (slower, every step visible)?</td><td>5 subagents, after approval.</td></tr>
+</table>
+</div>
+<p>With the 4 defaults, the next step is Phase 0 and Phase 1, then a stop after the pilot for the owner's review.</p>
+
+<p class="meta">Source: chat session of 2026-11-13 (Claude Opus 5.5). Facts checked in that session: 100 plan rows = 100 style files = 100 manifest entries = 100 posters (0 differences); <code>stage.js</code> has 355 lines; 11 style files use a post shader and 89 set <code>post: null</code>.</p>
+</main>
+</body>
+</html>

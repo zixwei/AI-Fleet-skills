@@ -1,0 +1,15 @@
+1
+00:00:00,000 --> 00:00:02,800
+First, mix flour, water and yeast.
+
+2
+00:00:03,400 --> 00:00:06,900
+The yeast eats sugar and makes gas.
+
+3
+00:00:07,500 --> 00:00:11,000
+The gas fills the dough, and it rises.
+
+4
+00:00:11,800 --> 00:00:14,600
+In the oven, heat sets the loaf.
