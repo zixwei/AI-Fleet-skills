@@ -14,7 +14,7 @@ license: MIT
 1. 按任务读 `skills/public/<名字>/SKILL.md`;不知道用哪个读 find-skills.
 2. 要调平台能力(远程研究)读 claude-to-deerflow.
 3. 咨询级报告(SWOT、PESTEL、波特五力、GB/T 7714-2015 引用)读 consulting-analysis.
-4. 只读方法、跑平台去上游:本库未收应用源码(见下).
+4. 应用源码已收、跑平台去上游:backend/ 与 frontend/ 全套文本已入库(见下);部署运行去上游.
 
 ## 与库里已有技能的分工
 
@@ -53,6 +53,6 @@ license: MIT
 
 ## 未入库说明
 
-- `backend/`(2,746 个文件,45.39 MiB 文本)与 `frontend/`(1,392 个文件,10.52 MiB 文本)应用源码未入:跑平台、部署去上游.
+- `backend/` 与 `frontend/` 内 41 个二进制未入(演示图/视频、基准图、favicon、Office 夹具),另 `backend/.test_durations`(pytest 耗时缓存,5.79MB)未入;应用源码文本已全入(backend/ 2,745 个文件,39.87 MiB;frontend/ 1,392 个文件,10.52 MiB).
 - `docs/` 与 `examples/` 下 14 个二进制(配图、截图、.xls 夹具)未入;`skill-reviewer/evals/fixtures/` 下 7 个夹具 SKILL.md 是该技能的测试夹具,不单独列为技能.
 - 其余文本全入(635 个文件,9.89 MiB):`skills/` 全套 + `.agent/` + `docs/` + 顶层文档 + `scripts/`、`deploy/`、`docker/`、`tests/`、`examples/`、`contracts/`、配置示例.
